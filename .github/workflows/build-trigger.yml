@@ -1,0 +1,27 @@
+name: 🍜 Build/publish go runners
+
+on:
+  push:
+    branches: ["feat_nbfc"]
+    paths:
+      - 'images/rootless-ubuntu-jammy-go-empty.Dockerfile'
+      - 'images/rootless-ubuntu-numbat-go-empty.Dockerfile'
+
+  workflow_dispatch: # build on demand
+  #schedule:
+  #  - cron: "43 6 * * 0" # build every Sunday at 6:43 AM UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-dockerfiles:
+    name: Build dockerfiles
+    uses: ./.github/workflows/build-latest-go.yml
+    secrets: inherit
+    with:
+      runner: '["go", "2204"]'
+      runner-archs: '["amd64", "aarch64"]'
+      dockerfiles: '["rootless-ubuntu-jammy-go-empty","rootless-ubuntu-numbat-go-empty"]'
+

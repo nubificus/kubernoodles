@@ -1,48 +1,38 @@
-name: 🍜 Build/publish go runners
+name: 🍜 Build/publish runners
 
 on:
-  push:
-    branches: ["feat_nbfc"]
-    paths:
-      - 'images/rootless-ubuntu-jammy-go.Dockerfile'
-      - 'images/rootless-ubuntu-numbat-go.Dockerfile'
-
-  workflow_dispatch: # build on demand
-  #schedule:
-  #  - cron: "43 6 * * 0" # build every Sunday at 6:43 AM UTC
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        default: '["go", "2204"]'
+      runner-archs:
+        type: string
+        default: '["amd64", "aarch64"]'
+      dockerfiles:
+        type: string
+        default: '["rootless-ubuntu-jammy-go-empty", "rootless-ubuntu-numbat-go-empty"]'
+      runner-arch-map:
+        type: string
+        default: '[{"amd64":"x86_64", "aarch64":"aarch64", "armv7l":"armv7l"}]'
+      registry:
+        type: string
+        default: 'harbor.nbfc.io'
+    secrets:
+      GIT_CLONE_PAT:
+        required: false
+      AWS_ACCESS_KEY:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      harbor_user:
+        required: false
+      harbor_secret:
+        required: false
 
 jobs:
-  generate-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      runner_group: ${{ steps.generate.outputs.runner_group }}
-    steps:
-      - name: Generate Runner Group
-        id: generate
-        run: |
-          # Read the input archs array
-          archs='["x86_64","aarch64"]'
-          
-          # Convert string input to a bash array
-          archs=$(echo $archs | jq -r '.[]')
-          
-          runner_group="["
-          for arch in $archs; do
-            if [[ "$arch" == "x86_64" ]]; then
-              runner_group="${runner_group}\"gcc-lite-2204-dind-amd64\","
-            elif [[ "$arch" == "aarch64" ]]; then
-              runner_group="${runner_group}\"gcc-lite-2204-dind-aarch64\","
-            elif [[ "$arch" == "armv7l" ]]; then
-              runner_group="${runner_group}\"gcc-lite-2204-dind-armv7l\","
-            fi
-          done
-          runner_group="${runner_group%,}]"  # Remove trailing comma and close the array
-          
-          echo "runner_group=$runner_group" >> $GITHUB_OUTPUT
-
   build-all:
-    needs: [generate-matrix]
-    runs-on: ${{ matrix.group }} #gcc-lite-2204-amd64-dind # use the GitHub-hosted runner to build the image
+    runs-on: ${{ format('{0}-{1}', join(fromJSON(inputs.runner), '-'), matrix.arch) }}
     permissions:
       contents: write # for uploading the SBOM to the release
       packages: write # for uploading the finished container
@@ -50,52 +40,32 @@ jobs:
       id-token: write # to complete the identity challenge with sigstore/fulcio when running outside of PRs
     strategy:
       matrix:
-        #os: [rootless-ubuntu-jammy, rootless-ubuntu-numbat, ubi8, ubi9, wolfi]
-        os: [rootless-ubuntu-jammy-go, rootless-ubuntu-numbat-go]
-        #arch: [amd64, arm64]
-        #arch: [amd64]
-        group: ${{ fromJson(needs.generate-matrix.outputs.runner_group) }}
+        dockerfile: ["${{ fromJSON(inputs.dockerfiles) }}"]
+        arch: ["${{ fromJSON(inputs.runner-archs) }}"]
     continue-on-error: true
 
     env:
-      REGISTRY: harbor.nbfc.io
-      IMAGE_NAME: harbor.nbfc.io/${{ github.repository }}/${{ matrix.os }}
+      REGISTRY: ${{ inputs.registry }}
+      IMAGE_NAME: ${{ inputs.registry }}/${{ github.repository }}/${{ matrix.dockerfile }}
+      ARCH: ${{ matrix.arch }}
 
     steps:
       - name: Checkout the repo
         uses: actions/checkout@v4
 
-      - name: Extract arch
-        run: |
-            arch_env=$(echo "${{ matrix.group }}" | sed 's/.*-//')
-            echo "ARCH=$arch_env" >> $GITHUB_ENV
-
-      - name: Set version
-        run: echo "VERSION=$(cat ${GITHUB_EVENT_PATH} | jq -r '.release.tag_name')" >> $GITHUB_ENV
-        if: github.event_name == 'release'
-
       - name: Set short SHA
         run: echo "SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
-          #- name: Login to GitHub Container Registry
-          #uses: docker/login-action@v3
-          #with:
-          #registry: ghcr.io
-          #username: ${{ github.actor }}
-          #password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log into registry ${{ inputs.REGISTRY }}
+      - name: Log into registry ${{ env.REGISTRY }}
         uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.harbor_user }}
           password: ${{ secrets.harbor_secret }}
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
@@ -104,9 +74,7 @@ jobs:
           tags: |
             type=sha,prefix=${{ env.ARCH }}-
  
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      - name: Build and push ${{ inputs.dockerfile }}-${{ matrix.architecture }}
+      - name: Build and push ${{ matrix.dockerfile }}-${{ matrix.arch}}
         id: build-and-push
         uses: docker/build-push-action@master
         with:
@@ -117,57 +85,15 @@ jobs:
           #cache-from: type=local,src=/tmp
           #cache-to: type=local,mode=max,dest=/tmp
           #file: ${{ inputs.dockerfile }}
-          file: ./images/${{ matrix.os }}.Dockerfile
+          file: ./images/${{ matrix.dockerfile }}.Dockerfile
           #build-contexts: |
           # ${{ steps.base-image-calculator.outputs.base_image }}
           provenance: false
  
-#      - name: Build the container
-#        uses: docker/build-push-action@v6
-#        id: build-and-push
-#        with:
-#          file: ./images/${{ matrix.os }}.Dockerfile
-#          push: true
-#          #load: true
-#          #platforms: linux/${{ env.ARCH }}
-#          tags: |
-#            harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.os }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}
-
-#      - name: Scan it
-#        uses: anchore/scan-action@v4
-#        if: env.ARCH == 'amd64'
-#        id: scan
-#        with:
-#          image: "harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.os }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}"
-#          fail-build: false
-#
-#      - name: Upload the container scan report
-#        if: env.ARCH == 'amd64'
-#        id: upload
-#        uses: github/codeql-action/upload-sarif@v3
-#        with:
-#          sarif_file: ${{ steps.scan.outputs.sarif }}
-#          wait-for-processing: true
-#      
-#      - name: Dismiss alerts on other architectures
-#        if: env.ARCH != 'amd64'
-#        uses: advanced-security/dismiss-alerts@v1
-#        with:
-#          sarif-id: ${{ steps.upload.outputs.sarif-id }}
-#          sarif-file: ${{ steps.scan.outputs.sarif }}
-#        env:
-#            GITHUB_TOKEN: ${{ github.token }}
-#
-#      - name: Generate that SBOM
-#        uses: anchore/sbom-action@v0
-#        with:
-#          image: "harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.os }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}"
-#          artifact-name: "${{ matrix.os }}-${{ env.ARCH }}-${{ env.SHA_SHORT }}.sbom"
-
       - name: Get image digest
         run: |
           echo "IMAGE_DIGEST=$(docker inspect \
-          harbor.nbfc.io/${{ github.repository }}/${{ matrix.os }}:${{ env.ARCH }}-${{ env.SHA_SHORT }} | \
+          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.ARCH }}-${{ env.SHA_SHORT }} | \
           jq -r '.[0].Id')" >> $GITHUB_ENV
 
       - name: Install cosign
@@ -176,29 +102,14 @@ jobs:
       - name: Sign the published Docker image
         env:
           COSIGN_EXPERIMENTAL: "true"
-          #DIGEST: ${{ env.IMAGE_DIGEST }}
           DIGEST: ${{steps.build-and-push.outputs.digest}}
-        # run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign {}@${{ steps.build-and-push.outputs.digest }}
         run: |
-          #cosign sign --yes harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.os }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}@$DIGEST \
-          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}@$DIGEST \
+          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}@$DIGEST \
           -a "repo=${{github.repository}}" \
           -a "workflow=${{github.workflow}}" \
           -a "ref=${{github.sha}}" \
           -a "author=Nubificus LTD"
 
-        #- name: Log in to GHCR
-        #run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-        #- name: Sign the published Docker image
-        #env:
-        #  COSIGN_EXPERIMENTAL: "true"
-        #run: cosign sign -y ghcr.io/${{ github.repository }}/${{ matrix.os }}@${{ env.IMAGE_DIGEST }}
-
-        #- name: Push the signed image, other tags
-        #run: |
-        #  docker push ghcr.io/${{ github.repository }}/${{ matrix.os }}:${{ env.SHA_SHORT }}
-        #  docker push ghcr.io/${{ github.repository }}/${{ matrix.os }}:latest
   manifest:
     needs: [build-all]
     runs-on: gcc-lite-2204-dind-amd64 # use the GitHub-hosted runner to build the image
@@ -209,32 +120,63 @@ jobs:
       id-token: write # to complete the identity challenge with sigstore/fulcio when running outside of PRs
     strategy:
       matrix:
-        #os: [rootless-ubuntu-jammy, rootless-ubuntu-numbat, ubi8, ubi9, wolfi]
-        os: [rootless-ubuntu-jammy-go, rootless-ubuntu-numbat-go]
+        dockerfile: ["${{ fromJSON(inputs.dockerfiles) }}"] 
     env:
-      REGISTRY: harbor.nbfc.io
+      REGISTRY: ${{ inputs.registry }}
       TAG: generic
 
     steps:
       - name: Checkout the repo
         uses: actions/checkout@v4
+
       - name: Set short SHA
         run: echo "SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
       - name: Log into registry ${{ inputs.REGISTRY }}
         uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.harbor_user }}
           password: ${{ secrets.harbor_secret }}
-      - name: Create manifest
+
+#      - name: Create manifest
+#        id: create-manifest
+#        run: |
+#                runner_archs=${{ inputs.runner-archs }}
+#                amend_command=""
+#                for arch in $( echo $runner_archs  | jq -r '.[]' ); do
+#                  amend_image=$(echo " --amend" ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:$arch-${{ env.SHA_SHORT }}) ;
+#                  amend_command="$amend_image$amend_command";
+#                done
+#                echo "-------------------- amend command -------------------"
+#                echo $amend_command
+#
+#                docker manifest create ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.TAG }} \
+#                  $(echo $amend_command)
+#                VAR=`docker manifest push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.TAG }} | tail -1`
+#                echo "manifest_sha=$VAR" >> "$GITHUB_OUTPUT"
+
+      - name: Process runner architectures and create docker manifest
         id: create-manifest
         run: |
-                docker manifest create ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}:${{ env.TAG }} \
-                  --amend ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}:amd64-${{ env.SHA_SHORT }} \
-                  --amend ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}:armv7l-${{ env.SHA_SHORT }} \
-                  --amend ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}:aarch64-${{ env.SHA_SHORT }}
-                VAR=`docker manifest push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}:${{ env.TAG }} | tail -1`
-                echo "manifest_sha=$VAR" >> "$GITHUB_OUTPUT"
+          runner_archs='${{ inputs.runner-archs }}'  # Using the input string array
+          amend_command=""
+
+          # Loop over the architectures and build the amend command
+          for arch in $(echo $runner_archs | jq -r '.[]'); do
+            amend_command+=" --amend ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:$arch-${{ env.SHA_SHORT }}"
+          done
+
+          echo "-------------------- Amend command constructed -------------------"
+          echo "$amend_command"
+
+          # Create the docker manifest with the amend command
+          docker manifest create ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.TAG }} $amend_command
+
+          # Optionally push the manifest (comment out if not needed)
+          #          docker manifest push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.TAG }}
+          VAR=`docker manifest push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.TAG }} | tail -1`
+          echo "manifest_sha=$VAR" >> "$GITHUB_OUTPUT"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@main
@@ -242,14 +184,12 @@ jobs:
       - name: Sign the published Docker image
         env:
           COSIGN_EXPERIMENTAL: "true"
-          #DIGEST: ${{ env.IMAGE_DIGEST }}
           DIGEST: ${{steps.create-manifest.outputs.manifest_sha }}
         # run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign {}@${{ steps.build-and-push.outputs.digest }}
         run: |
-          #cosign sign --yes harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.os }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}@$DIGEST \
-          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.os }}@$DIGEST \
+          #cosign sign --yes harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}@$DIGEST \
+          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.dockerfile }}@$DIGEST \
           -a "repo=${{github.repository}}" \
           -a "workflow=${{github.workflow}}" \
           -a "ref=${{github.sha}}" \
           -a "author=Nubificus LTD"
-
