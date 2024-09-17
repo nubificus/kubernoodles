@@ -21,7 +21,7 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["go", "2204"]'
-      runner-archs: '["amd64", "aarch64"]'
+      runner: '["gcc", "lite", "2204", "dind"]'
+      runner-archs: '["amd64", "aarch64", "armv7l"]'
       dockerfiles: '["rootless-ubuntu-jammy-go-empty","rootless-ubuntu-numbat-go-empty"]'
 
