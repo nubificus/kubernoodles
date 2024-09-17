@@ -1,11 +1,11 @@
-name: 🍜 Build/publish all runners
+name: 🍜 Build/publish go runners
 
 on:
   push:
     branches: ["feat_nbfc"]
     paths:
-      - 'images/rootless-ubuntu-jammy.Dockerfile'
-      - 'images/rootless-ubuntu-numbat.Dockerfile'
+      - 'images/rootless-ubuntu-jammy-go.Dockerfile'
+      - 'images/rootless-ubuntu-numbat-go.Dockerfile'
 
   workflow_dispatch: # build on demand
   #schedule:
@@ -21,7 +21,7 @@ jobs:
         id: generate
         run: |
           # Read the input archs array
-          archs='["x86_64","aarch64","armv7l"]'
+          archs='["x86_64","aarch64"]'
           
           # Convert string input to a bash array
           archs=$(echo $archs | jq -r '.[]')
@@ -51,7 +51,7 @@ jobs:
     strategy:
       matrix:
         #os: [rootless-ubuntu-jammy, rootless-ubuntu-numbat, ubi8, ubi9, wolfi]
-        os: [rootless-ubuntu-jammy, rootless-ubuntu-numbat]
+        os: [rootless-ubuntu-jammy-go, rootless-ubuntu-numbat-go]
         #arch: [amd64, arm64]
         #arch: [amd64]
         group: ${{ fromJson(needs.generate-matrix.outputs.runner_group) }}
@@ -210,7 +210,7 @@ jobs:
     strategy:
       matrix:
         #os: [rootless-ubuntu-jammy, rootless-ubuntu-numbat, ubi8, ubi9, wolfi]
-        os: [rootless-ubuntu-jammy, rootless-ubuntu-numbat]
+        os: [rootless-ubuntu-jammy-go, rootless-ubuntu-numbat-go]
     env:
       REGISTRY: harbor.nbfc.io
       TAG: generic
