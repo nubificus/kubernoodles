@@ -4,8 +4,9 @@ on:
   push:
     branches: ["feat_nbfc"]
     paths:
-      - 'images/rootless-ubuntu-jammy-go-empty.Dockerfile'
-      - 'images/rootless-ubuntu-numbat-go-empty.Dockerfile'
+      - 'images/*.Dockerfile'
+            #- 'images/rootless-ubuntu-jammy-go.Dockerfile'
+            #- 'images/rootless-ubuntu-numbat-go.Dockerfile'
 
   workflow_dispatch: # build on demand
   #schedule:
@@ -16,12 +17,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-dockerfiles:
+  get-changed-files:
+    runs-on: ubuntu-latest
+    outputs:
+      files_go: ${{ steps.filter.outputs.go_files }}
+      files_gcc: ${{ steps.filter.outputs.gcc_files }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Get Changed Files
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            go:
+              - 'images/rootless-ubuntu-*-go.Dockerfile'
+            gcc:
+              - 'images/rootless-ubuntu-*-gcc.Dockerfile'
+
+      - name: Show Changed Files
+        run: |
+          echo "Files in src: ${{ steps.filter.outputs.go_files }}"
+          echo "Files in jobs: ${{ steps.filter.outputs.gcc_files }}"
+
+  build-dockerfiles-go:
+    needs: [get-changed-files]
     name: Build dockerfiles
+    if: ${{ needs.get-changed-files.outputs.files_go != '' }}
+    uses: ./.github/workflows/build-latest-go.yml
+    secrets: inherit
+    with:
+      runner: '["gcc", "lite", "2204", "dind"]'
+      runner-archs: '["amd64", "aarch64"]'
+      dockerfiles: ${{ needs.get-changed-files.outputs.files_go }}
+
+  build-dockerfiles-gcc:
+    needs: [get-changed-files]
+    name: Build dockerfiles
+    if: ${{ needs.get-changed-files.outputs.files_gcc != '' }}
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
       runner: '["gcc", "lite", "2204", "dind"]'
       runner-archs: '["amd64", "aarch64", "armv7l"]'
-      dockerfiles: '["rootless-ubuntu-jammy-go-empty","rootless-ubuntu-numbat-go-empty"]'
+      dockerfiles: ${{ needs.get-changed-files.outputs.files_gcc }}
 
