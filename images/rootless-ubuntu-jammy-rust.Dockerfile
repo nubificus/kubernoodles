@@ -164,6 +164,12 @@ RUN apt update && \
 # install pip packages for meson
 RUN pip install meson gcovr pycobertura codespell
 
+# Install rust using rustup
+ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
+RUN wget --https-only --secure-protocol=TLSv1_2 -O- https://sh.rustup.rs | sh /dev/stdin -y
+RUN chmod a+w /opt/cargo
+RUN chmod a+w /opt/rust
+
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 USER runner
 
