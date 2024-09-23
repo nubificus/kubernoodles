@@ -22,6 +22,9 @@ jobs:
       files_go: ${{ steps.replace_files_go.outputs.go_files_new }}
       files_gcc: ${{ steps.replace_files_gcc.outputs.gcc_files_new }}
       files_rust: ${{ steps.replace_files_rust.outputs.rust_files_new }}
+      go: ${{ steps.replace_files_go.outputs.go }}
+      gcc: ${{ steps.replace_files_gcc.outputs.gcc }}
+      rust: ${{ steps.replace_files_rust.outputs.rust }}
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -147,7 +150,7 @@ jobs:
   build-dockerfiles-go:
     needs: [get-changed-files]
     name: Go
-    if: ${{ needs.get-changed-files.outputs.files_go != '' }}
+    if: ${{ needs.get-changed-files.outputs.go }}
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
@@ -158,7 +161,7 @@ jobs:
   build-dockerfiles-rust:
     needs: [get-changed-files]
     name: Rust
-    if: ${{ needs.get-changed-files.outputs.files_rust != '' }}
+    if: ${{ needs.get-changed-files.outputs.rust }}
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
@@ -169,7 +172,7 @@ jobs:
   build-dockerfiles-gcc:
     needs: [get-changed-files]
     name: GCC
-    if: ${{ needs.get-changed-files.outputs.files_gcc != '' }}
+    if: ${{ needs.get-changed-files.outputs.gcc }}
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
