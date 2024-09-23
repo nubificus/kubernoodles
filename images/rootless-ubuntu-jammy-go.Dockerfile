@@ -5,8 +5,7 @@ ARG RUNNER_VERSION=2.319.1
 ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Docker and Compose arguments
-ARG DOCKER_VERSION=27.2.0
-ARG COMPOSE_VERSION=v2.29.2
+ARG DOCKER_VERSION=27.2.1
 
 # Dumb-init version
 ARG DUMB_INIT_VERSION=1.2.5
@@ -16,13 +15,13 @@ ARG DEBUG=false
 ARG TARGETPLATFORM
 
 # Label all the things!!
-LABEL org.opencontainers.image.source="https://github.com/some-natalie/kubernoodles"
+LABEL org.opencontainers.image.source="https://github.com/nubificus/kubernoodles"
 LABEL org.opencontainers.image.path="images/rootless-ubuntu-jammy.Dockerfile"
 LABEL org.opencontainers.image.title="rootless-ubuntu-jammy"
 LABEL org.opencontainers.image.description="An Ubuntu Jammy (22.04 LTS) based runner image for GitHub Actions, rootless"
-LABEL org.opencontainers.image.authors="Natalie Somersall (@some-natalie)"
+LABEL org.opencontainers.image.authors="Anastassios Nanos (@ananos)"
 LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.documentation="https://github.com/some-natalie/kubernoodles/README.md"
+LABEL org.opencontainers.image.documentation="https://github.com/nubificus/kubernoodles/README.md"
 
 # Set environment variables needed at build or run
 ENV DEBIAN_FRONTEND=noninteractive

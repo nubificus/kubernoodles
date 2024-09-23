@@ -2,7 +2,6 @@ name: 🍜 Build/publish go runners
 
 on:
   push:
-    branches: ["feat_nbfc"]
     paths:
       - 'images/*.Dockerfile'
             #- 'images/rootless-ubuntu-jammy-go.Dockerfile'
