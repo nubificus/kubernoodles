@@ -86,8 +86,8 @@ RUN bash /gh-cli.sh && rm /gh-cli.sh
 # Install Docker
 RUN export DOCKER_ARCH=x86_64 \
     && export RUNNER_ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-    && if [ "$RUNNER_ARCH" = "arm64" ]; then export DOCKER_ARCH=aarch64 ; fi \
-    && if [ "$RUNNER_ARCH" = "arm" ]; then export DOCKER_ARCH=armhf; fi \
+    && if [ "$RUNNER_ARCH" = "aarch64" ]; then export DOCKER_ARCH=aarch64 ; fi \
+    && if [ "$RUNNER_ARCH" = "armv7l" ]; then export DOCKER_ARCH=armhf; fi \
     && curl -fLo docker.tgz https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz \
     && tar zxvf docker.tgz \
     && rm -rf docker.tgz

@@ -112,7 +112,7 @@ jobs:
 
   manifest:
     needs: [build-all]
-    runs-on: gcc-lite-2204-dind-amd64 # use the GitHub-hosted runner to build the image
+    runs-on: gcc-dind-2204-amd64 # use the GitHub-hosted runner to build the image
     permissions:
       contents: write # for uploading the SBOM to the release
       packages: write # for uploading the finished container

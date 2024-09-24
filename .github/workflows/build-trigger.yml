@@ -154,7 +154,7 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["go", "dind", "2204"]'
+      runner: '["gcc", "dind", "2204"]'
       runner-archs: '["amd64", "arm64"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_go }}
 
@@ -165,7 +165,7 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["rust", "dind", "2204"]'
+      runner: '["gcc", "dind", "2204"]'
       runner-archs: '["amd64", "arm64", "arm"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_rust }}
 
@@ -176,7 +176,7 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["rust", "dind", "2204"]'
+      runner: '["gcc", "dind", "2204"]'
       runner-archs: '["amd64", "arm64", "arm"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_gcc }}
 
