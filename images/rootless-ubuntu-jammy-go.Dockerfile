@@ -194,6 +194,7 @@ RUN go version
 
 WORKDIR /home/runner
 
+RUN chmod 777 /usr/local/bin
 USER runner
 
 ENTRYPOINT ["/usr/local/bin/dumb-init", "--"]

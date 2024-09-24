@@ -22,9 +22,9 @@ jobs:
       files_go: ${{ steps.replace_files_go.outputs.go_files_new }}
       files_gcc: ${{ steps.replace_files_gcc.outputs.gcc_files_new }}
       files_rust: ${{ steps.replace_files_rust.outputs.rust_files_new }}
-      go: ${{ steps.replace_files_go.outputs.go }}
-      gcc: ${{ steps.replace_files_gcc.outputs.gcc }}
-      rust: ${{ steps.replace_files_rust.outputs.rust }}
+      go: ${{ steps.filter.outputs.go }}
+      gcc: ${{ steps.filter.outputs.gcc }}
+      rust: ${{ steps.filter.outputs.rust }}
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -154,8 +154,8 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["gcc", "lite", "2204", "dind"]'
-      runner-archs: '["amd64", "aarch64"]'
+      runner: '["go", "dind", "2204"]'
+      runner-archs: '["amd64", "arm64"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_go }}
 
   build-dockerfiles-rust:
@@ -165,8 +165,8 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["gcc", "lite", "2204", "dind"]'
-      runner-archs: '["amd64", "aarch64", "armv7l"]'
+      runner: '["rust", "dind", "2204"]'
+      runner-archs: '["amd64", "arm64", "arm"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_rust }}
 
   build-dockerfiles-gcc:
@@ -176,7 +176,7 @@ jobs:
     uses: ./.github/workflows/build-latest-go.yml
     secrets: inherit
     with:
-      runner: '["gcc", "lite", "2204", "dind"]'
-      runner-archs: '["amd64", "aarch64", "armv7l"]'
+      runner: '["rust", "dind", "2204"]'
+      runner-archs: '["amd64", "arm64", "arm"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_gcc }}
 

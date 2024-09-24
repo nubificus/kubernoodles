@@ -155,6 +155,7 @@ RUN wget --https-only --secure-protocol=TLSv1_2 -O- https://sh.rustup.rs | sh /d
 RUN chmod a+w /opt/cargo
 RUN chmod a+w /opt/rust
 
+RUN chmod 777 /usr/local/bin
 
 # No group definition, as that makes it harder to run docker.
 USER runner

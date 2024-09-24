@@ -149,6 +149,7 @@ RUN pip install --break-system-packages meson gcovr pycobertura codespell
 
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
+RUN chmod 777 /usr/local/bin
 # No group definition, as that makes it harder to run docker.
 USER runner
 

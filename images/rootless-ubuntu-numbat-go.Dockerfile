@@ -170,6 +170,7 @@ RUN go version
 
 WORKDIR /home/runner
 
+RUN chmod 777 /usr/local/bin
 # No group definition, as that makes it harder to run docker.
 USER runner
 
