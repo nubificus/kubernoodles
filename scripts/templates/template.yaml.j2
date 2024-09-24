@@ -1,0 +1,80 @@
+githubConfigUrl: "{{ githubConfigUrl }}"
+
+githubConfigSecret: "{{ k8s_secret }}"
+
+template:
+  metadata:
+    labels:
+      runner: {{ runner_image }}-{{ osversion }}{% if dind %}-dind{% endif %}-{{ architecture }}
+  spec:
+    {% if dind %}
+    initContainers:
+    - name: init-dind-externals
+      image: harbor.nbfc.io/nubificus/kubernoodles/rootless-ubuntu-{{ osname }}-{{ flavor }}:generic
+      imagePullPolicy: Always
+      command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+      volumeMounts:
+        - name: dind-externals
+          mountPath: /home/runner/tmpDir
+    {% endif %}
+    containers:
+    - name: runner
+      image: harbor.nbfc.io/nubificus/kubernoodles/rootless-ubuntu-{{ osname }}-{{ flavor }}:generic
+      imagePullPolicy: Always
+      command: ["/home/runner/run.sh"]
+    {% if dind %}
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2376
+        - name: DOCKER_TLS_VERIFY
+          value: "1"
+        - name: DOCKER_CERT_PATH
+          value: /certs/client
+      volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-cert
+          mountPath: /certs/client
+          readOnly: true
+    - name: dind
+      image: docker.io/docker:dind
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-cert
+          mountPath: /certs/client
+        - name: dind-externals
+          mountPath: /home/runner/externals
+    volumes:
+    - name: work
+      emptyDir: {}
+    - name: dind-cert
+      emptyDir: {}
+    - name: dind-externals
+      emptyDir: {}
+    {% endif %}
+    nodeSelector: {
+      "kubernetes.io/arch": "{{ architecture }}"
+    }
+    tolerations: [
+      {
+        "key": "kubernetes.io/arch",
+        "operator": "Equal",
+        "value": "{{ architecture }}",
+        "effect": "NoSchedule"
+      }
+    ]
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: runner
+                    operator: In
+                    values:
+                      - {{ runner_image }}-{{ osversion }}{% if dind %}-dind{% endif %}-{{ architecture }}
