@@ -60,8 +60,22 @@ RUN apt-get update \
     wget \
     xz-utils \
     zip \
+    gnupg-agent \
+    openssh-client \
+    make \
+    rsync \
+    jq \
+    sudo \
+    python3-pip python3-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update && \
+    apt-get -y install --no-install-recommends git && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1000 runner
@@ -132,14 +146,6 @@ ENV PATH="${PATH}:${HOME}/.local/bin:/home/runner/bin"
 ENV ImageOS=ubuntu22
 
 ENV HOME=/home/runner
-
-# No group definition, as that makes it harder to run docker.
-USER runner
-
-#RUN curl --create-dirs -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-Linux-x86_64" -o /home/runner/bin/docker-compose ; \
-#  chmod +x /home/runner/bin/docker-compose
-
-USER root
 
 RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
     echo 'TZ=Etc/UTC' >> /etc/environment

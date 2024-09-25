@@ -61,8 +61,21 @@ RUN apt-get update \
   wget \
   xz-utils \
   zip \
+  gnupg-agent \
+  openssh-client \
+  make \
+  rsync \
+  jq \
+  sudo \
+  python3-pip python3-dev \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+RUN add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update && \
+    apt-get -y install --no-install-recommends git && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1001 runner
