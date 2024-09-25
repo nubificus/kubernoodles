@@ -87,8 +87,8 @@ RUN bash /gh-cli.sh && rm /gh-cli.sh
 # Install Docker
 RUN export DOCKER_ARCH=x86_64 \
   && export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-  && if [ "$ARCH" = "aarch64" ]; then export DOCKER_ARCH=aarch64 ; fi \
-  && if [ "$ARCH" = "armv7l" ]; then export DOCKER_ARCH=armhf; fi \
+  && if [ "$ARCH" = "arm64" ]; then export DOCKER_ARCH=aarch64 ; fi \
+  && if [ "$ARCH" = "arm" ]; then export DOCKER_ARCH=armhf; fi \
   && curl -fLo docker.tgz https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz \
   && tar zxvf docker.tgz \
   && rm -rf docker.tgz
@@ -98,8 +98,6 @@ RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
 # Runner download supports amd64 as x64
 RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
   && echo "ARCH: $ARCH" \
-  && if [ "$ARCH" = "aarch64" ]; then export ARCH=arm64 ; fi \
-  && if [ "$ARCH" = "armv7l" ]; then export ARCH=arm ; fi \
   && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
   && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
   && tar xzf ./runner.tar.gz \
