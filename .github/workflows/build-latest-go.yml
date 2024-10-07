@@ -33,6 +33,7 @@ on:
 jobs:
   build-all:
     runs-on: ${{ format('{0}-{1}', join(fromJSON(inputs.runner), '-'), matrix.arch) }}
+    timeout-minutes: 600
     permissions:
       contents: write # for uploading the SBOM to the release
       packages: write # for uploading the finished container

@@ -1,0 +1,237 @@
+FROM ubuntu:22.04
+
+# GitHub runner arguments
+ARG RUNNER_VERSION=2.320.0
+ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
+
+# Docker and Compose arguments
+ARG DOCKER_VERSION=27.2.1
+ARG COMPOSE_VERSION=v2.29.2
+
+# Dumb-init version
+ARG DUMB_INIT_VERSION=1.2.5
+
+# Other arguments, expose TARGETPLATFORM for multi-arch builds
+ARG DEBUG=false
+ARG TARGETPLATFORM
+
+# Label all the things!!
+LABEL org.opencontainers.image.source="https://github.com/some-natalie/kubernoodles"
+LABEL org.opencontainers.image.path="images/rootless-ubuntu-jammy.Dockerfile"
+LABEL org.opencontainers.image.title="rootless-ubuntu-jammy"
+LABEL org.opencontainers.image.description="An Ubuntu Jammy (22.04 LTS) based runner image for GitHub Actions, rootless"
+LABEL org.opencontainers.image.authors="Natalie Somersall (@some-natalie)"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.documentation="https://github.com/some-natalie/kubernoodles/README.md"
+
+# Set environment variables needed at build or run
+ENV DEBIAN_FRONTEND=noninteractive
+ENV RUNNER_MANUALLY_TRAP_SIG=1
+ENV ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1
+
+# Copy in environment variables not needed at build
+COPY images/.env /.env
+
+# Shell setup
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Install base software
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  apt-transport-https \
+  apt-utils \
+  ca-certificates \
+  curl \
+  gcc \
+  git \
+  iproute2 \
+  iptables \
+  jq \
+  libyaml-dev \
+  locales \
+  lsb-release \
+  openssl \
+  pigz \
+  pkg-config \
+  software-properties-common \
+  time \
+  tzdata \
+  uidmap \
+  unzip \
+  wget \
+  xz-utils \
+  zip \
+  gnupg-agent \
+  openssh-client \
+  make \
+  rsync \
+  jq \
+  sudo \
+  python3-dev \
+  python3-venv \
+  python3-distutils \
+  python3-pip \
+  python3-numpy \
+  python3-wheel && \
+  apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update && \
+    apt-get -y install --no-install-recommends git && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Runner user
+RUN adduser --disabled-password --gecos "" --uid 1000 runner
+
+# Make and set the working directory
+RUN mkdir -p /home/runner \
+  && chown -R $USERNAME:$GID /home/runner
+
+WORKDIR /home/runner
+
+# Install GitHub CLI
+COPY images/software/gh-cli.sh /gh-cli.sh
+RUN bash /gh-cli.sh && rm /gh-cli.sh
+
+## Install kubectl
+#COPY images/software/kubectl.sh /kubectl.sh
+#RUN bash /kubectl.sh && rm /kubectl.sh
+
+## Install helm
+#RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Install Docker
+RUN export DOCKER_ARCH=x86_64 \
+  && export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+  && if [ "$ARCH" = "arm64" ]; then export DOCKER_ARCH=aarch64 ; fi \
+  && if [ "$ARCH" = "arm" ]; then export DOCKER_ARCH=armhf; fi \
+  && curl -fLo docker.tgz https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz \
+  && tar zxvf docker.tgz \
+  && rm -rf docker.tgz
+
+RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
+
+# Runner download supports amd64 as x64
+RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+  && echo "ARCH: $ARCH" \
+  && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
+  && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
+  && tar xzf ./runner.tar.gz \
+  && rm runner.tar.gz \
+  && ./bin/installdependencies.sh \
+  && apt-get autoclean \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install container hooks
+RUN curl -f -L -o runner-container-hooks.zip https://github.com/actions/runner-container-hooks/releases/download/v${RUNNER_CONTAINER_HOOKS_VERSION}/actions-runner-hooks-k8s-${RUNNER_CONTAINER_HOOKS_VERSION}.zip \
+  && unzip ./runner-container-hooks.zip -d ./k8s \
+  && rm runner-container-hooks.zip
+
+# Make the rootless runner directory and externals directory executable
+RUN mkdir -p /run/user/1000 \
+  && chown runner:runner /run/user/1000 \
+  && chmod a+x /run/user/1000 \
+  && mkdir -p /home/runner/externals \
+  && chown runner:runner /home/runner/externals \
+  && chmod a+x /home/runner/externals
+
+# Add the Python "User Script Directory" to the PATH
+ENV PATH="${PATH}:${HOME}/.local/bin:/home/runner/bin"
+ENV ImageOS=ubuntu22
+
+ENV HOME=/home/runner
+
+
+RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
+    echo 'TZ=Etc/UTC' >> /etc/environment
+RUN apt update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    curl && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Install build-essential lcov and update cmake
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    apt-get install -y --no-install-recommends gcc-10 g++-10 lcov && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 && \
+    apt-get install -y --no-install-recommends build-essential cmake gcc-12 g++-12 ninja-build dh-make \
+       git-buildpackage \
+       libxml2-dev libxslt1-dev \
+       libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN git clone https://github.com/Yelp/dumb-init && cd dumb-init && make && cp dumb-init /usr/local/bin/dumb-init
+
+
+# install pip packages for meson
+RUN pip install meson gcovr pycobertura codespell
+
+ARG LLVM_VERSION=17
+
+# Install LLVM
+RUN wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    sudo ./llvm.sh "${LLVM_VERSION}" && \
+    rm llvm.sh && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ARG TARGETARCH
+# Install Bazelisk as Bazel
+RUN BAZELISK="bazelisk-linux-${TARGETARCH}" && \
+    VERSION="v1.20.0" && \
+    wget "https://github.com/bazelbuild/bazelisk/releases/download/${VERSION}/${BAZELISK}" && \
+    chmod +x "${BAZELISK}" && \
+    mv "${BAZELISK}" /usr/local/bin/bazel
+
+ARG TF_VERSION=v2.17.0
+# Build and install TensorFlow
+RUN git clone -b "${TF_VERSION}" --recursive --depth 1 \
+        https://github.com/tensorflow/tensorflow.git && \
+    cd tensorflow && \
+    ./configure && \
+    bazel \
+        --host_jvm_args=-Xmx2g \
+        build --jobs=HOST_CPUS*.8 \
+            --local_ram_resources=HOST_RAM*.4 \
+            --config=v2 \
+            --copt=-O3 \
+            --verbose_failures \
+            --discard_analysis_cache \
+            -c opt \
+            //tensorflow:libtensorflow.so \
+            //tensorflow:libtensorflow_cc.so \
+            //tensorflow:libtensorflow_framework.so \
+            //tensorflow:install_headers \
+            --config=monolithic \
+            //tensorflow/lite/c:libtensorflowlite_c.so \
+            //tensorflow/lite:libtensorflowlite.so \
+            //tensorflow/lite/delegates/flex:tensorflowlite_flex && \
+    OUT_DIR=bazel-bin/tensorflow && \
+    rsync -aPm \
+        --exclude='internal' --exclude='testing' --exclude='ios' \
+        --exclude='python' --exclude='java' --exclude='objc' --exclude='swift' \
+        --exclude='*internal*.h' --exclude='*test*.h' \
+        --include='*/' --include='*.h' \
+	--exclude='*' \
+        tensorflow/lite/* "${OUT_DIR}/include/tensorflow/lite" && \
+    PREFIX=/usr/local && \
+    cp -r "${OUT_DIR}"/include "${PREFIX}/" && \
+    find "${OUT_DIR}" -path '*runfiles' -prune -o -name 'libtensorflow*.so*' \
+        -exec cp -a {} "${PREFIX}/lib/" \; && \ 
+    rm -rf "${PREFIX}"/lib/*.params* "${PREFIX}"/lib/*.runfiles* && \
+    rm -rf /root/.cache && \
+    cd .. && rm -rf tensorflow
+
+RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
+
+RUN chmod 777 /usr/local/bin
+USER runner
+
+ENTRYPOINT ["/usr/local/bin/dumb-init", "--"]

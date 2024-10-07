@@ -22,9 +22,11 @@ jobs:
       files_go: ${{ steps.replace_files_go.outputs.go_files_new }}
       files_gcc: ${{ steps.replace_files_gcc.outputs.gcc_files_new }}
       files_rust: ${{ steps.replace_files_rust.outputs.rust_files_new }}
+      files_tf: ${{ steps.replace_files_tf.outputs.tf_files_new }}
       go: ${{ steps.filter.outputs.go }}
       gcc: ${{ steps.filter.outputs.gcc }}
       rust: ${{ steps.filter.outputs.rust }}
+      tf: ${{ steps.filter.outputs.tf }}
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -42,12 +44,15 @@ jobs:
               - 'images/rootless-ubuntu-*-gcc.Dockerfile'
             rust:
               - 'images/rootless-ubuntu-*-rust.Dockerfile'
+            tf:
+              - 'images/rootless-ubuntu-*-tf.Dockerfile'
 
       - name: Show Changed Files
         run: |
           echo "Files in go: ${{ steps.filter.outputs.go_files }}"
           echo "Files in gcc: ${{ steps.filter.outputs.gcc_files }}"
-          echo "Files in gcc: ${{ steps.filter.outputs.rust_files }}"
+          echo "Files in rust: ${{ steps.filter.outputs.rust_files }}"
+          echo "Files in tf: ${{ steps.filter.outputs.tf_files }}"
           echo "Files changed: ${{ steps.filter.outputs.changes }}"
 
       - name: Replace file paths in go_files
@@ -140,11 +145,42 @@ jobs:
           # Set the output for the replaced names in JSON format
           echo "::set-output name=rust_files_new::$JSON_OUTPUT"
 
+      - name: Replace file paths in tf_files
+        id: replace_files_tf
+        run: |
+          # Get the changed Dockerfiles from the paths-filter output
+          FILES="${{ steps.filter.outputs.tf_files }}"
+
+          # Remove the brackets and split the string by commas
+          FILES_ARRAY=($(echo "$FILES" | sed 's/[][]//g' | tr ',' '\n'))
+
+          # Initialize a variable to store the new names
+          NEW_FILE_NAMES=()
+
+          # Loop through the files and replace the paths
+          for FILE_PATH in "${FILES_ARRAY[@]}"; do
+            echo "Processing file: $FILE_PATH"
+            # Remove 'images/' and '.Dockerfile' from the filename
+            NEW_NAME=$(basename "$FILE_PATH" .Dockerfile | sed 's/^images\///')
+            # Append the new name to the array
+            NEW_FILE_NAMES+=("\"$NEW_NAME\"")
+          done
+
+          # Join the array into a JSON array format
+          JSON_OUTPUT=$(printf "[%s]" "$(IFS=,; echo "${NEW_FILE_NAMES[*]}")")
+
+          # Debugging output
+          echo "Final JSON Output: $JSON_OUTPUT"
+
+          # Set the output for the replaced names in JSON format
+          echo "::set-output name=tf_files_new::$JSON_OUTPUT"
+
       - name: Use replaced filenames
         run: |
           echo "Processed filenames: ${{ steps.replace_files_go.outputs.go_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_gcc.outputs.gcc_files_new}}"
-          echo "Processed filenames: ${{ steps.replace_files_gcc.outputs.rust_files_new}}"
+          echo "Processed filenames: ${{ steps.replace_files_rust.outputs.rust_files_new}}"
+          echo "Processed filenames: ${{ steps.replace_files_tf.outputs.tf_files_new}}"
 
 
   build-dockerfiles-go:
@@ -179,4 +215,15 @@ jobs:
       runner: '["gcc", "dind", "2204"]'
       runner-archs: '["amd64", "arm64", "arm"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_gcc }}
+
+  build-dockerfiles-tf:
+    needs: [get-changed-files]
+    name: TF
+    if: ${{ needs.get-changed-files.outputs.tf }}
+    uses: ./.github/workflows/build-latest-go.yml
+    secrets: inherit
+    with:
+      runner: '["gcc", "dind", "2204"]'
+      runner-archs: '["amd64", "arm64"]'
+      dockerfiles: ${{ needs.get-changed-files.outputs.files_tf }}
 
