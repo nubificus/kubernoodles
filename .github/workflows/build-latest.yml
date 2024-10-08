@@ -1,11 +1,6 @@
 name: 🍜 Build/publish all runners
 
 on:
-  push:
-    branches: ["feat_nbfc"]
-    paths:
-      - 'images/rootless-ubuntu-jammy.Dockerfile'
-      - 'images/rootless-ubuntu-numbat.Dockerfile'
 
   workflow_dispatch: # build on demand
   #schedule:
