@@ -1,7 +1,7 @@
-FROM ubuntu:22.04
+FROM harbor.nbfc.io/proxy_cache/library/ubuntu:22.04
 
 # GitHub runner arguments
-ARG RUNNER_VERSION=2.320.0
+ARG RUNNER_VERSION=2.321.0
 ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Docker and Compose arguments

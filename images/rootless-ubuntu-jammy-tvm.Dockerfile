@@ -6,6 +6,7 @@ ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Docker and Compose arguments
 ARG DOCKER_VERSION=27.2.1
+ARG COMPOSE_VERSION=v2.29.2
 
 # Dumb-init version
 ARG DUMB_INIT_VERSION=1.2.5
@@ -15,13 +16,13 @@ ARG DEBUG=false
 ARG TARGETPLATFORM
 
 # Label all the things!!
-LABEL org.opencontainers.image.source="https://github.com/nubificus/kubernoodles"
+LABEL org.opencontainers.image.source="https://github.com/some-natalie/kubernoodles"
 LABEL org.opencontainers.image.path="images/rootless-ubuntu-jammy.Dockerfile"
 LABEL org.opencontainers.image.title="rootless-ubuntu-jammy"
 LABEL org.opencontainers.image.description="An Ubuntu Jammy (22.04 LTS) based runner image for GitHub Actions, rootless"
-LABEL org.opencontainers.image.authors="Anastassios Nanos (@ananos)"
+LABEL org.opencontainers.image.authors="Natalie Somersall (@some-natalie)"
 LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.documentation="https://github.com/nubificus/kubernoodles/README.md"
+LABEL org.opencontainers.image.documentation="https://github.com/some-natalie/kubernoodles/README.md"
 
 # Set environment variables needed at build or run
 ENV DEBIAN_FRONTEND=noninteractive
@@ -36,39 +37,61 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install base software
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    apt-transport-https \
-    apt-utils \
-    ca-certificates \
-    curl \
-    gcc \
-    git \
-    iproute2 \
-    iptables \
-    jq \
-    libyaml-dev \
-    locales \
-    lsb-release \
-    openssl \
-    pigz \
-    pkg-config \
-    software-properties-common \
-    time \
-    tzdata \
-    uidmap \
-    unzip \
-    wget \
-    xz-utils \
-    zip \
-    gnupg-agent \
-    openssh-client \
-    make \
-    rsync \
-    jq \
-    sudo \
-    python3-pip python3-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends \
+  apt-transport-https \
+  apt-utils \
+  ca-certificates \
+  curl \
+  gcc \
+  git \
+  iproute2 \
+  iptables \
+  jq \
+  libyaml-dev \
+  locales \
+  lsb-release \
+  openssl \
+  pigz \
+  pkg-config \
+  software-properties-common \
+  time \
+  tzdata \
+  uidmap \
+  unzip \
+  wget \
+  xz-utils \
+  zip \
+  gnupg-agent \
+  openssh-client \
+  make \
+  rsync \
+  jq \
+  sudo \
+  python3-pip python3-dev \
+  libopencv-dev \
+  python3-dev \
+  python3-pip \
+  python3-setuptools \
+  python3-wheel \
+  python3-yaml \
+  python3-numpy \
+  unzip \
+  libopenblas-dev \
+  libjpeg-dev \
+  libpng-dev \
+  libtiff-dev \
+  libavcodec-dev \
+  libavformat-dev \
+  libswscale-dev \
+  libv4l-dev \
+  libxvidcore-dev \
+  libx264-dev \
+  libatlas-base-dev \
+  gfortran \
+  libffi-dev \
+  libssl-dev \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN add-apt-repository -y ppa:git-core/ppa && \
     apt-get update && \
@@ -76,13 +99,12 @@ RUN add-apt-repository -y ppa:git-core/ppa && \
     apt-get -y clean && \
     rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1000 runner
 
 # Make and set the working directory
 RUN mkdir -p /home/runner \
-    && chown -R $USERNAME:$GID /home/runner
+  && chown -R $USERNAME:$GID /home/runner
 
 WORKDIR /home/runner
 
@@ -99,53 +121,45 @@ RUN bash /gh-cli.sh && rm /gh-cli.sh
 
 # Install Docker
 RUN export DOCKER_ARCH=x86_64 \
-    && export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-    && if [ "$ARCH" = "arm64" ]; then export DOCKER_ARCH=aarch64 ; fi \
-    && if [ "$ARCH" = "arm" ]; then export DOCKER_ARCH=armhf; fi \
-    && curl -fLo docker.tgz https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz \
-    && tar zxvf docker.tgz \
-    && rm -rf docker.tgz
+  && export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+  && if [ "$ARCH" = "arm64" ]; then export DOCKER_ARCH=aarch64 ; fi \
+  && if [ "$ARCH" = "arm" ]; then export DOCKER_ARCH=armhf; fi \
+  && curl -fLo docker.tgz https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz \
+  && tar zxvf docker.tgz \
+  && rm -rf docker.tgz
 
 RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
 
 # Runner download supports amd64 as x64
 RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-    && echo "ARCH: $ARCH" \
-    && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
-    && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
-    && tar xzf ./runner.tar.gz \
-    && rm runner.tar.gz \
-    && ./bin/installdependencies.sh \
-    && apt-get autoclean \
-    && rm -rf /var/lib/apt/lists/*
+  && echo "ARCH: $ARCH" \
+  && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
+  && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
+  && tar xzf ./runner.tar.gz \
+  && rm runner.tar.gz \
+  && ./bin/installdependencies.sh \
+  && apt-get autoclean \
+  && rm -rf /var/lib/apt/lists/*
 
 # Install container hooks
 RUN curl -f -L -o runner-container-hooks.zip https://github.com/actions/runner-container-hooks/releases/download/v${RUNNER_CONTAINER_HOOKS_VERSION}/actions-runner-hooks-k8s-${RUNNER_CONTAINER_HOOKS_VERSION}.zip \
-    && unzip ./runner-container-hooks.zip -d ./k8s \
-    && rm runner-container-hooks.zip
-
-# Install dumb-init, arch command on OS X reports "i386" for Intel CPUs regardless of bitness
-#RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-#  && export ARCH \
-#  && if [ "$ARCH" = "arm" ]; then export ARCH=armv7l; fi \
-#  && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
-#  && if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then export ARCH=x86_64 ; fi \
-#  && curl -f -L -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/dumb-init_${DUMB_INIT_VERSION}_${ARCH} \
-#  && chmod +x /usr/local/bin/dumb-init
+  && unzip ./runner-container-hooks.zip -d ./k8s \
+  && rm runner-container-hooks.zip
 
 # Make the rootless runner directory and externals directory executable
 RUN mkdir -p /run/user/1000 \
-    && chown runner:runner /run/user/1000 \
-    && chmod a+x /run/user/1000 \
-    && mkdir -p /home/runner/externals \
-    && chown runner:runner /home/runner/externals \
-    && chmod a+x /home/runner/externals
+  && chown runner:runner /run/user/1000 \
+  && chmod a+x /run/user/1000 \
+  && mkdir -p /home/runner/externals \
+  && chown runner:runner /home/runner/externals \
+  && chmod a+x /home/runner/externals
 
 # Add the Python "User Script Directory" to the PATH
 ENV PATH="${PATH}:${HOME}/.local/bin:/home/runner/bin"
 ENV ImageOS=ubuntu22
 
 ENV HOME=/home/runner
+
 
 RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
     echo 'TZ=Etc/UTC' >> /etc/environment
@@ -171,34 +185,31 @@ RUN apt-get update && \
 
 RUN git clone https://github.com/Yelp/dumb-init && cd dumb-init && make && cp dumb-init /usr/local/bin/dumb-init
 
-RUN apt update && \
-    apt-get install -y --no-install-recommends sudo python3-pip python3-dev
 
 # install pip packages for meson
-RUN pip install meson gcovr pycobertura codespell
+RUN pip install meson gcovr pycobertura codespell typing_extensions
+
 
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
-# Install Go depending on the system architecture
-ENV GO_VERSION=1.20.3
-ARG TARGETARCH
-ARG ARCH_INFO=$TARGETARCH
-ENV ARCH_INFO=${ARCH_INFO}
-
-WORKDIR /
-RUN sudo mkdir -p /golang && \
-  wget "https://go.dev/dl/go${GO_VERSION}.linux-$TARGETARCH.tar.gz" -O go_archive.tar.gz && \
-  tar -zxvf /go_archive.tar.gz -C /golang && \
-  rm -rf go_archive.tar.gz
-
-ENV PATH=/golang/go/bin:$PATH
-ENV GOROOT=/golang/go
-ENV GOPATH=/home/runner/go
-RUN go version
-
-WORKDIR /home/runner
+ARG TVM_VERSION="v0.18.0"
+# Build and install PyTorch
+#RUN [ -z "${TORCH_VERSION}" ] && \
+#    TVM_TAG=$(git ls-remote --tags --refs --sort='v:refname' \
+#        https://github.com/apache/tvm | \
+#        grep -E "refs/tags/v[0-9]+\.[0-9]+.[0-9]+$" | awk -F/ 'END{print$NF}') && \
+#    TVM_VERSION=${TVM_TAG}; \
+RUN git clone https://github.com/apache/tvm --depth 1 --recursive \
+        -b "${TVM_VERSION}" && \
+    cd tvm && \
+    cmake -S . -B build && \
+    cmake --build build --parallel "$(nproc)" && \
+    cmake --install build --prefix=/usr/local && \
+    cd .. 
+# && rm -rf tvm
 
 RUN chmod 777 /usr/local/bin
 USER runner
+
 
 ENTRYPOINT ["/usr/local/bin/dumb-init", "--"]
