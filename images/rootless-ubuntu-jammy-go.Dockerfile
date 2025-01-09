@@ -76,7 +76,6 @@ RUN add-apt-repository -y ppa:git-core/ppa && \
     apt-get -y clean && \
     rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1000 runner
 

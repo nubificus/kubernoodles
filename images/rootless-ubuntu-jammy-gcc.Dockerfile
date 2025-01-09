@@ -172,5 +172,4 @@ RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 RUN chmod 777 /usr/local/bin
 USER runner
 
-
 ENTRYPOINT ["/usr/local/bin/dumb-init", "--"]
