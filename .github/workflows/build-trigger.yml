@@ -42,7 +42,7 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           list-files: 'json'
-          base: 'feat_nbfc_build_diff'
+          base: 'feat_nbfc_build_diff_jammy'
           filters: |
             go:
               - 'images/rootless-ubuntu-*-go.Dockerfile'

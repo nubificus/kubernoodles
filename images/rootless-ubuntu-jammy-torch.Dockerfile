@@ -212,5 +212,4 @@ RUN [ -z "${TORCH_VERSION}" ] && \
 RUN chmod 777 /usr/local/bin
 USER runner
 
-
 ENTRYPOINT ["/usr/local/bin/dumb-init", "--"]
