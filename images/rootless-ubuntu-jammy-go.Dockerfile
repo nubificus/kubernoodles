@@ -180,7 +180,7 @@ RUN pip install meson gcovr pycobertura codespell
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
 # Install Go depending on the system architecture
-ENV GO_VERSION=1.20.3
+ENV GO_VERSION=1.23.4
 ARG TARGETARCH
 ARG ARCH_INFO=$TARGETARCH
 ENV ARCH_INFO=${ARCH_INFO}
