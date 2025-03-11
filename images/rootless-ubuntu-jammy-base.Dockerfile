@@ -1,8 +1,5 @@
-FROM ubuntu:22.04
+FROM harbor.nbfc.io/proxy_cache/library/ubuntu:22.04
 
-# GitHub runner arguments
-ARG RUNNER_VERSION=2.320.0
-ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Docker and Compose arguments
 ARG DOCKER_VERSION=27.2.1
@@ -108,38 +105,6 @@ RUN export DOCKER_ARCH=x86_64 \
 
 RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
 
-# Runner download supports amd64 as x64
-RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-    && echo "ARCH: $ARCH" \
-    && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
-    && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
-    && tar xzf ./runner.tar.gz \
-    && rm runner.tar.gz \
-    && ./bin/installdependencies.sh \
-    && apt-get autoclean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install container hooks
-RUN curl -f -L -o runner-container-hooks.zip https://github.com/actions/runner-container-hooks/releases/download/v${RUNNER_CONTAINER_HOOKS_VERSION}/actions-runner-hooks-k8s-${RUNNER_CONTAINER_HOOKS_VERSION}.zip \
-    && unzip ./runner-container-hooks.zip -d ./k8s \
-    && rm runner-container-hooks.zip
-
-# Install dumb-init, arch command on OS X reports "i386" for Intel CPUs regardless of bitness
-#RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
-#  && export ARCH \
-#  && if [ "$ARCH" = "arm" ]; then export ARCH=armv7l; fi \
-#  && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
-#  && if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then export ARCH=x86_64 ; fi \
-#  && curl -f -L -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/dumb-init_${DUMB_INIT_VERSION}_${ARCH} \
-#  && chmod +x /usr/local/bin/dumb-init
-
-# Make the rootless runner directory and externals directory executable
-RUN mkdir -p /run/user/1000 \
-    && chown runner:runner /run/user/1000 \
-    && chmod a+x /run/user/1000 \
-    && mkdir -p /home/runner/externals \
-    && chown runner:runner /home/runner/externals \
-    && chmod a+x /home/runner/externals
 
 # Add the Python "User Script Directory" to the PATH
 ENV PATH="${PATH}:${HOME}/.local/bin:/home/runner/bin"
@@ -180,14 +145,18 @@ RUN pip install meson gcovr pycobertura codespell
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
 # Install Go depending on the system architecture
-ENV GO_VERSION=1.20.3
+ENV GO_VERSION=1.24.1
 ARG TARGETARCH
 ARG ARCH_INFO=$TARGETARCH
 ENV ARCH_INFO=${ARCH_INFO}
 
 WORKDIR /
 RUN sudo mkdir -p /golang && \
-  wget "https://go.dev/dl/go${GO_VERSION}.linux-$TARGETARCH.tar.gz" -O go_archive.tar.gz && \
+    export ARCH=$(uname -m) \
+        && if [ "$ARCH" = "armv7l" ]; then export GO_ARCH=armv6l; fi  \
+        && if [ "$ARCH" = "aarch64" ]; then export GO_ARCH=arm64; fi  \
+        && if [ "$ARCH" = "x86_64" ]; then export GO_ARCH=amd64; fi  \
+  && wget "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -O go_archive.tar.gz && \
   tar -zxvf /go_archive.tar.gz -C /golang && \
   rm -rf go_archive.tar.gz
 
@@ -196,7 +165,50 @@ ENV GOROOT=/golang/go
 ENV GOPATH=/home/runner/go
 RUN go version
 
+# Install rust using rustup
+ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
+RUN wget --https-only --secure-protocol=TLSv1_2 -O- https://sh.rustup.rs | sh /dev/stdin -y
+RUN chmod a+w /opt/cargo
+RUN chmod a+w /opt/rust
+
 WORKDIR /home/runner
+
+# GitHub runner arguments
+ARG RUNNER_VERSION=2.322.0
+ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
+
+# Runner download supports amd64 as x64
+RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+    && echo "ARCH: $ARCH" \
+    && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
+    && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
+    && tar xzf ./runner.tar.gz \
+    && rm runner.tar.gz \
+    && ./bin/installdependencies.sh \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install container hooks
+RUN curl -f -L -o runner-container-hooks.zip https://github.com/actions/runner-container-hooks/releases/download/v${RUNNER_CONTAINER_HOOKS_VERSION}/actions-runner-hooks-k8s-${RUNNER_CONTAINER_HOOKS_VERSION}.zip \
+    && unzip ./runner-container-hooks.zip -d ./k8s \
+    && rm runner-container-hooks.zip
+
+# Install dumb-init, arch command on OS X reports "i386" for Intel CPUs regardless of bitness
+#RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+#  && export ARCH \
+#  && if [ "$ARCH" = "arm" ]; then export ARCH=armv7l; fi \
+#  && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
+#  && if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then export ARCH=x86_64 ; fi \
+#  && curl -f -L -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/dumb-init_${DUMB_INIT_VERSION}_${ARCH} \
+#  && chmod +x /usr/local/bin/dumb-init
+
+# Make the rootless runner directory and externals directory executable
+RUN mkdir -p /run/user/1000 \
+    && chown runner:runner /run/user/1000 \
+    && chmod a+x /run/user/1000 \
+    && mkdir -p /home/runner/externals \
+    && chown runner:runner /home/runner/externals \
+    && chmod a+x /home/runner/externals
 
 RUN chmod 777 /usr/local/bin
 USER runner
