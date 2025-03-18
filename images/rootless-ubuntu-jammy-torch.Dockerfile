@@ -1,5 +1,7 @@
 FROM harbor.nbfc.io/nubificus/kubernoodles/rootless-ubuntu-jammy-base:generic
 
+USER root
+ARG TARGETPLATFORM
 ARG TORCH_VERSION
 # Build and install PyTorch
 RUN [ -z "${TORCH_VERSION}" ] && \
@@ -10,7 +12,7 @@ RUN [ -z "${TORCH_VERSION}" ] && \
     git clone https://github.com/pytorch/pytorch --depth 1 --recursive \
         -b "${TORCH_VERSION}" && \
     cd pytorch && \
-    pip install pyyaml && \
+    pip install pyyaml typing_extensions && \
     export _GLIBCXX_USE_CXX11_ABI=1 && \
     export USE_CUDA=0 && \
     cmake -S . -B build && \
@@ -37,7 +39,7 @@ RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
 
 # Install container hooks
 RUN curl -f -L -o runner-container-hooks.zip https://github.com/actions/runner-container-hooks/releases/download/v${RUNNER_CONTAINER_HOOKS_VERSION}/actions-runner-hooks-k8s-${RUNNER_CONTAINER_HOOKS_VERSION}.zip \
-    && unzip ./runner-container-hooks.zip -d ./k8s \
+    && unzip -o ./runner-container-hooks.zip -d ./k8s \
     && rm runner-container-hooks.zip
 
 # Install dumb-init, arch command on OS X reports "i386" for Intel CPUs regardless of bitness

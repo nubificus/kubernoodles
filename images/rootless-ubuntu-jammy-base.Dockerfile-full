@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM harbor.nbfc.io/proxy_cache/library/ubuntu:22.04
 
 
 # Docker and Compose arguments
@@ -31,8 +31,11 @@ COPY images/.env /.env
 # Shell setup
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
+    echo 'TZ=Etc/UTC' >> /etc/environment
+
 # Install base software
-RUN apt-get update \
+RUN apt-get clean && apt-get update \
     && apt-get install -y --no-install-recommends \
     apt-transport-https \
     apt-utils \
@@ -64,15 +67,27 @@ RUN apt-get update \
     jq \
     sudo \
     python3-pip python3-dev \
+    libcurl4-openssl-dev libstb-dev \
+    gcc \
+    g++ \
+    curl \
+    gcc-10 g++-10 lcov \
+    build-essential cmake gcc-12 g++-12 ninja-build dh-make \
+    git-buildpackage \
+    libxml2-dev libxslt1-dev \
+    libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler \
     && apt-get clean \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN add-apt-repository -y ppa:git-core/ppa && \
-    apt-get update && \
-    apt-get -y install --no-install-recommends git && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
+#RUN add-apt-repository -y ppa:git-core/ppa && \
+#    apt-get update && \
+#    apt-get -y install --no-install-recommends git && \
+#    apt-get -y clean && \
+#    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+#
+# install pip packages for meson
+RUN pip install meson gcovr pycobertura codespell
 
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1000 runner
@@ -87,13 +102,6 @@ WORKDIR /home/runner
 COPY images/software/gh-cli.sh /gh-cli.sh
 RUN bash /gh-cli.sh && rm /gh-cli.sh
 
-## Install kubectl
-#COPY images/software/kubectl.sh /kubectl.sh
-#RUN bash /kubectl.sh && rm /kubectl.sh
-
-## Install helm
-#RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
 # Install Docker
 RUN export DOCKER_ARCH=x86_64 \
     && export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
@@ -105,42 +113,14 @@ RUN export DOCKER_ARCH=x86_64 \
 
 RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
 
-
 # Add the Python "User Script Directory" to the PATH
 ENV PATH="${PATH}:${HOME}/.local/bin:/home/runner/bin"
 ENV ImageOS=ubuntu22
 
 ENV HOME=/home/runner
 
-RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
-    echo 'TZ=Etc/UTC' >> /etc/environment
-RUN apt update && \
-    apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    curl && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Install build-essential lcov and update cmake
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common && \
-    apt-get install -y --no-install-recommends gcc-10 g++-10 lcov && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 && \
-    apt-get install -y --no-install-recommends build-essential cmake gcc-12 g++-12 ninja-build dh-make \
-       git-buildpackage \
-       libxml2-dev libxslt1-dev \
-       libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN git clone https://github.com/Yelp/dumb-init && cd dumb-init && make && cp dumb-init /usr/local/bin/dumb-init
-
-RUN apt update && \
-    apt-get install -y --no-install-recommends sudo python3-pip python3-dev
-
-# install pip packages for meson
-RUN pip install meson gcovr pycobertura codespell
 
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
@@ -151,14 +131,19 @@ ARG ARCH_INFO=$TARGETARCH
 ENV ARCH_INFO=${ARCH_INFO}
 
 WORKDIR /
-RUN sudo mkdir -p /golang && \
-  wget "https://go.dev/dl/go${GO_VERSION}.linux-$TARGETARCH.tar.gz" -O go_archive.tar.gz && \
-  tar -zxvf /go_archive.tar.gz -C /golang && \
+ARG HOSTARCH
+RUN sudo mkdir -p /golang-local && \
+    export ARCH=$TARGETARCH \
+        && if [ "${ARCH}" = "arm" ]; then export GO_ARCH=armv6l; fi  \
+        && if [ "${ARCH}" = "arm64" ]; then export GO_ARCH=arm64; fi  \
+        && if [ "${ARCH}" = "amd64" ]; then export GO_ARCH=amd64; fi  \
+  && wget "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -O go_archive.tar.gz && \
+  tar -zxvf /go_archive.tar.gz -C /golang-local && \
   rm -rf go_archive.tar.gz
 
-ENV PATH=/golang/go/bin:$PATH
-ENV GOROOT=/golang/go
-ENV GOPATH=/home/runner/go
+ENV PATH=/golang-local/go/bin:$PATH
+ENV GOROOT=/golang-local/go
+ENV GOPATH=/home/runner/go-local
 RUN go version
 
 # Install rust using rustup
@@ -166,63 +151,6 @@ ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
 RUN wget --https-only --secure-protocol=TLSv1_2 -O- https://sh.rustup.rs | sh /dev/stdin -y
 RUN chmod a+w /opt/cargo
 RUN chmod a+w /opt/rust
-
-ARG LLVM_VERSION=17
-
-# Install LLVM
-RUN wget https://apt.llvm.org/llvm.sh && \
-    chmod +x llvm.sh && \
-    sudo ./llvm.sh "${LLVM_VERSION}" && \
-    rm llvm.sh && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-ARG TARGETARCH
-# Install Bazelisk as Bazel
-RUN BAZELISK="bazelisk-linux-${TARGETARCH}" && \
-    VERSION="v1.20.0" && \
-    wget "https://github.com/bazelbuild/bazelisk/releases/download/${VERSION}/${BAZELISK}" && \
-    chmod +x "${BAZELISK}" && \
-    mv "${BAZELISK}" /usr/local/bin/bazel
-
-ARG TF_VERSION=v2.17.0
-# Build and install TensorFlow
-RUN git clone -b "${TF_VERSION}" --recursive --depth 1 \
-        https://github.com/tensorflow/tensorflow.git && \
-    cd tensorflow && \
-    ./configure && \
-    bazel \
-        --host_jvm_args=-Xmx2g \
-        build --jobs=HOST_CPUS*.8 \
-            --local_ram_resources=HOST_RAM*.4 \
-            --config=v2 \
-            --copt=-O3 \
-            --verbose_failures \
-            --discard_analysis_cache \
-            -c opt \
-            //tensorflow:libtensorflow.so \
-            //tensorflow:libtensorflow_cc.so \
-            //tensorflow:libtensorflow_framework.so \
-            //tensorflow:install_headers \
-            --config=monolithic \
-            //tensorflow/lite/c:libtensorflowlite_c.so \
-            //tensorflow/lite:libtensorflowlite.so \
-            //tensorflow/lite/delegates/flex:tensorflowlite_flex && \
-    OUT_DIR=bazel-bin/tensorflow && \
-    rsync -aPm \
-        --exclude='internal' --exclude='testing' --exclude='ios' \
-        --exclude='python' --exclude='java' --exclude='objc' --exclude='swift' \
-        --exclude='*internal*.h' --exclude='*test*.h' \
-        --include='*/' --include='*.h' \
-	--exclude='*' \
-        tensorflow/lite/* "${OUT_DIR}/include/tensorflow/lite" && \
-    PREFIX=/usr/local && \
-    cp -r "${OUT_DIR}"/include "${PREFIX}/" && \
-    find "${OUT_DIR}" -path '*runfiles' -prune -o -name 'libtensorflow*.so*' \
-	-exec cp -a {} "${PREFIX}/lib/" \; && \
-    rm -rf "${PREFIX}"/lib/*.params* "${PREFIX}"/lib/*.runfiles* && \
-    rm -rf /root/.cache && \
-    cd .. && rm -rf tensorflow
 
 WORKDIR /home/runner
 

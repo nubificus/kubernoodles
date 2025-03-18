@@ -34,7 +34,7 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           list-files: 'json'
-          base: 'feat_fix'
+          base: 'feat_nbfc'
           filters: |
             base:
               - 'images/rootless-ubuntu-*-base.Dockerfile'
@@ -159,7 +159,7 @@ jobs:
       dockerfiles: ${{ needs.get-changed-files.outputs.files_base }}
 
   build-dockerfiles-tf:
-    needs: [get-changed-files]
+    needs: [get-changed-files,build-dockerfiles-base]
     name: TF
     if: ${{ needs.get-changed-files.outputs.tf }}
     uses: ./.github/workflows/build-latest.yml
@@ -170,7 +170,7 @@ jobs:
       dockerfiles: ${{ needs.get-changed-files.outputs.files_tf }}
 
   build-dockerfiles-torch:
-    needs: [get-changed-files]
+    needs: [get-changed-files,build-dockerfiles-base]
     name: Torch 
     if: ${{ needs.get-changed-files.outputs.torch }}
     uses: ./.github/workflows/build-latest.yml
