@@ -31,8 +31,11 @@ COPY images/.env /.env
 # Shell setup
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
+    echo 'TZ=Etc/UTC' >> /etc/environment
+
 # Install base software
-RUN apt-get update \
+RUN apt-get clean && apt-get update \
     && apt-get install -y --no-install-recommends \
     apt-transport-https \
     apt-utils \
@@ -64,15 +67,27 @@ RUN apt-get update \
     jq \
     sudo \
     python3-pip python3-dev \
+    libcurl4-openssl-dev libstb-dev \
+    gcc \
+    g++ \
+    curl \
+    gcc-10 g++-10 lcov \
+    build-essential cmake gcc-12 g++-12 ninja-build dh-make \
+    git-buildpackage \
+    libxml2-dev libxslt1-dev \
+    libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler \
     && apt-get clean \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN add-apt-repository -y ppa:git-core/ppa && \
-    apt-get update && \
-    apt-get -y install --no-install-recommends git && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
+#RUN add-apt-repository -y ppa:git-core/ppa && \
+#    apt-get update && \
+#    apt-get -y install --no-install-recommends git && \
+#    apt-get -y clean && \
+#    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+#
+# install pip packages for meson
+RUN pip install meson gcovr pycobertura codespell
 
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1000 runner
@@ -87,13 +102,6 @@ WORKDIR /home/runner
 COPY images/software/gh-cli.sh /gh-cli.sh
 RUN bash /gh-cli.sh && rm /gh-cli.sh
 
-## Install kubectl
-#COPY images/software/kubectl.sh /kubectl.sh
-#RUN bash /kubectl.sh && rm /kubectl.sh
-
-## Install helm
-#RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
 # Install Docker
 RUN export DOCKER_ARCH=x86_64 \
     && export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
@@ -105,42 +113,14 @@ RUN export DOCKER_ARCH=x86_64 \
 
 RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
 
-
 # Add the Python "User Script Directory" to the PATH
 ENV PATH="${PATH}:${HOME}/.local/bin:/home/runner/bin"
 ENV ImageOS=ubuntu22
 
 ENV HOME=/home/runner
 
-RUN echo 'DEBIAN_FRONTEND=noninteractive' >> /etc/environment && \
-    echo 'TZ=Etc/UTC' >> /etc/environment
-RUN apt update && \
-    apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    curl && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Install build-essential lcov and update cmake
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common && \
-    apt-get install -y --no-install-recommends gcc-10 g++-10 lcov && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 && \
-    apt-get install -y --no-install-recommends build-essential cmake gcc-12 g++-12 ninja-build dh-make \
-       git-buildpackage \
-       libxml2-dev libxslt1-dev \
-       libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN git clone https://github.com/Yelp/dumb-init && cd dumb-init && make && cp dumb-init /usr/local/bin/dumb-init
-
-RUN apt update && \
-    apt-get install -y --no-install-recommends sudo python3-pip python3-dev
-
-# install pip packages for meson
-RUN pip install meson gcovr pycobertura codespell
 
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
@@ -151,18 +131,19 @@ ARG ARCH_INFO=$TARGETARCH
 ENV ARCH_INFO=${ARCH_INFO}
 
 WORKDIR /
-RUN sudo mkdir -p /golang && \
-    export ARCH=$(uname -m) \
-        && if [ "$ARCH" = "armv7l" ]; then export GO_ARCH=armv6l; fi  \
-        && if [ "$ARCH" = "aarch64" ]; then export GO_ARCH=arm64; fi  \
-        && if [ "$ARCH" = "x86_64" ]; then export GO_ARCH=amd64; fi  \
+ARG HOSTARCH
+RUN sudo mkdir -p /golang-local && \
+    export ARCH=$TARGETARCH \
+        && if [ "${ARCH}" = "arm" ]; then export GO_ARCH=armv6l; fi  \
+        && if [ "${ARCH}" = "arm64" ]; then export GO_ARCH=arm64; fi  \
+        && if [ "${ARCH}" = "amd64" ]; then export GO_ARCH=amd64; fi  \
   && wget "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -O go_archive.tar.gz && \
-  tar -zxvf /go_archive.tar.gz -C /golang && \
+  tar -zxvf /go_archive.tar.gz -C /golang-local && \
   rm -rf go_archive.tar.gz
 
-ENV PATH=/golang/go/bin:$PATH
-ENV GOROOT=/golang/go
-ENV GOPATH=/home/runner/go
+ENV PATH=/golang-local/go/bin:$PATH
+ENV GOROOT=/golang-local/go
+ENV GOPATH=/home/runner/go-local
 RUN go version
 
 # Install rust using rustup

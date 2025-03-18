@@ -14,7 +14,7 @@ on:
         default: '["rootless-ubuntu-jammy-go-empty", "rootless-ubuntu-numbat-go-empty"]'
       runner-arch-map:
         type: string
-        default: '[{"amd64":"x86_64", "aarch64":"aarch64", "armv7l":"armv7l"}]'
+        default: '[{"amd64":"x86_64", "arm64":"aarch64", "arm":"armv7l"}]'
       registry:
         type: string
         default: 'harbor.nbfc.io'
@@ -86,6 +86,8 @@ jobs:
           #cache-to: type=local,mode=max,dest=/tmp
           #file: ${{ inputs.dockerfile }}
           file: ./images/${{ matrix.dockerfile }}.Dockerfile
+          build-arg: |
+            HOSTARCH=${{ fromJson(inputs.runner-arch-map)[0][matrix.arch] }}
           #build-contexts: |
           # ${{ steps.base-image-calculator.outputs.base_image }}
           provenance: false

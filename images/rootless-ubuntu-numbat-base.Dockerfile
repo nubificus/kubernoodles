@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM harbor.nbfc.io/proxy_cache/library/ubuntu:24.04
 
 
 # Docker and Compose arguments
@@ -65,6 +65,13 @@ RUN apt-get update \
     jq \
     sudo \
     python3-pip python3-dev \
+    gcc-10 g++-10 lcov  \
+    build-essential cmake gcc-12 g++-12 ninja-build dh-make \
+    git-buildpackage \
+    libxml2-dev libxslt1-dev \
+    libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler \
+    libcurl4-openssl-dev libstb-dev \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -74,6 +81,8 @@ RUN add-apt-repository -y ppa:git-core/ppa && \
     apt-get -y clean && \
     rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# install pip packages for meson
+RUN pip install --break-system-packages meson gcovr pycobertura codespell
 
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid 1001 runner
@@ -113,25 +122,8 @@ ENV ImageOS=ubuntu24
 
 ENV HOME=/home/runner
 
-# Install build-essential lcov and update cmake
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common && \
-    apt-get install -y --no-install-recommends gcc-10 g++-10 lcov && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 && \
-    apt-get install -y --no-install-recommends build-essential cmake gcc-12 g++-12 ninja-build dh-make \
-       git-buildpackage \
-       libxml2-dev libxslt1-dev \
-       libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler && \
-    apt-get -y clean && \
-    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
 RUN git clone https://github.com/Yelp/dumb-init && cd dumb-init && make && cp dumb-init /usr/local/bin/dumb-init
 
-RUN apt update && \
-    apt-get install -y --no-install-recommends sudo python3-pip python3-dev
-
-# install pip packages for meson
-RUN pip install --break-system-packages meson gcovr pycobertura codespell
 
 RUN echo "runner ALL= EXEC: NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
@@ -142,12 +134,13 @@ ARG ARCH_INFO=$TARGETARCH
 ENV ARCH_INFO=${ARCH_INFO}
 
 WORKDIR /
+ARG HOSTARCH
 RUN sudo mkdir -p /golang && \
-    export ARCH=$(uname -m) \
-        && if [ "$ARCH" = "armv7l" ]; then export GO_ARCH=armv6l; fi  \
-        && if [ "$ARCH" = "aarch64" ]; then export GO_ARCH=arm64; fi  \
-        && if [ "$ARCH" = "x86_64" ]; then export GO_ARCH=amd64; fi  \
-  && wget "https://go.dev/dl/go${GO_VERSION}.linux-$TARGETARCH.tar.gz" -O go_archive.tar.gz && \
+    export ARCH=$TARGETARCH \
+        && if [ "${ARCH}" = "arm" ]; then export GO_ARCH=armv6l; fi  \
+        && if [ "${ARCH}" = "arm64" ]; then export GO_ARCH=arm64; fi  \
+        && if [ "${ARCH}" = "amd64" ]; then export GO_ARCH=amd64; fi  \
+  && wget "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -O go_archive.tar.gz && \
   tar -zxvf /go_archive.tar.gz -C /golang && \
   rm -rf go_archive.tar.gz
 
