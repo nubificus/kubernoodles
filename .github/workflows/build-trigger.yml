@@ -22,9 +22,11 @@ jobs:
       files_base: ${{ steps.replace_files_base.outputs.base_files_new }}
       files_torch: ${{ steps.replace_files_torch.outputs.torch_files_new }}
       files_tf: ${{ steps.replace_files_tf.outputs.tf_files_new }}
+      files_tvm: ${{ steps.replace_files_tvm.outputs.tvm_files_new }}
       base: ${{ steps.filter.outputs.base }}
       torch: ${{ steps.filter.outputs.torch }}
       tf: ${{ steps.filter.outputs.tf }}
+      tvm: ${{ steps.filter.outputs.tvm }}
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -42,12 +44,15 @@ jobs:
               - 'images/rootless-ubuntu-*-torch.Dockerfile'
             tf:
               - 'images/rootless-ubuntu-*-tf.Dockerfile'
+            tvm:
+              - 'images/rootless-ubuntu-*-tvm.Dockerfile'
 
       - name: Show Changed Files
         run: |
           echo "Files in base: ${{ steps.filter.outputs.base_files }}"
           echo "Files in torch: ${{ steps.filter.outputs.torch_files }}"
           echo "Files in tf: ${{ steps.filter.outputs.tf_files }}"
+          echo "Files in tvm: ${{ steps.filter.outputs.tvm_files }}"
           echo "Files changed: ${{ steps.filter.outputs.changes }}"
 
       - name: Replace file paths in base_files
@@ -140,11 +145,42 @@ jobs:
           # Set the output for the replaced names in JSON format
           echo "::set-output name=tf_files_new::$JSON_OUTPUT"
 
+      - name: Replace file paths in tvm_files
+        id: replace_files_tvm
+        run: |
+          # Get the changed Dockerfiles from the paths-filter output
+          FILES="${{ steps.filter.outputs.tvm_files }}"
+
+          # Remove the brackets and split the string by commas
+          FILES_ARRAY=($(echo "$FILES" | sed 's/[][]//g' | tr ',' '\n'))
+
+          # Initialize a variable to store the new names
+          NEW_FILE_NAMES=()
+
+          # Loop through the files and replace the paths
+          for FILE_PATH in "${FILES_ARRAY[@]}"; do
+            echo "Processing file: $FILE_PATH"
+            # Remove 'images/' and '.Dockerfile' from the filename
+            NEW_NAME=$(basename "$FILE_PATH" .Dockerfile | sed 's/^images\///')
+            # Append the new name to the array
+            NEW_FILE_NAMES+=("\"$NEW_NAME\"")
+          done
+
+          # Join the array into a JSON array format
+          JSON_OUTPUT=$(printf "[%s]" "$(IFS=,; echo "${NEW_FILE_NAMES[*]}")")
+
+          # Debugging output
+          echo "Final JSON Output: $JSON_OUTPUT"
+
+          # Set the output for the replaced names in JSON format
+          echo "::set-output name=tvm_files_new::$JSON_OUTPUT"
+
       - name: Use replaced filenames
         run: |
           echo "Processed filenames: ${{ steps.replace_files_base.outputs.base_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_torch.outputs.torch_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_tf.outputs.tf_files_new}}"
+          echo "Processed filenames: ${{ steps.replace_files_tf.outputs.tvm_files_new}}"
 
 
   build-dockerfiles-base:
@@ -179,4 +215,15 @@ jobs:
       runner: '["base", "dind", "2204"]'
       runner-archs: '["amd64", "arm64"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_torch }}
+
+  build-dockerfiles-tvm:
+    needs: [get-changed-files,build-dockerfiles-base]
+    name: Torch 
+    if: ${{ needs.get-changed-files.outputs.tvm }}
+    uses: ./.github/workflows/build-latest.yml
+    secrets: inherit
+    with:
+      runner: '["base", "dind", "2204"]'
+      runner-archs: '["amd64", "arm64"]'
+      dockerfiles: ${{ needs.get-changed-files.outputs.files_tvm }}
 

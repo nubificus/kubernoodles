@@ -1,4 +1,4 @@
-FROM harbor.nbfc.io/nubificus/kubernoodles/rootless-ubuntu-numbat-base:generic
+FROM harbor.nbfc.io/nubificus/kubernoodles/rootless-ubuntu-jammy-base:generic
 
 USER root
 
@@ -9,6 +9,22 @@ RUN add-apt-repository -y ppa:git-core/ppa && \
     apt-get -y install --no-install-recommends git && \
     apt-get -y clean && \
     rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ARG TVM_VERSION="v0.17.0"
+# Build and install PyTorch
+#RUN [ -z "${TORCH_VERSION}" ] && \
+#    TVM_TAG=$(git ls-remote --tags --refs --sort='v:refname' \
+#        https://github.com/apache/tvm | \
+#        grep -E "refs/tags/v[0-9]+\.[0-9]+.[0-9]+$" | awk -F/ 'END{print$NF}') && \
+#    TVM_VERSION=${TVM_TAG}; \
+RUN git clone https://github.com/apache/tvm --depth 1 --recursive \
+        -b "${TVM_VERSION}" && \
+    cd tvm && \
+    cmake -S . -B build && \
+    cmake --build build --parallel "$(nproc)" && \
+    cmake --install build --prefix=/usr/local && \
+    cd .. 
+# && rm -rf tvm
 
 WORKDIR /home/runner
 
@@ -21,7 +37,7 @@ RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
     && echo "ARCH: $ARCH" \
     && if [ "$ARCH" = "amd64" ]; then export ARCH=x64 ; fi \
     && curl -L -o runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz \
-    && tar -xz --no-same-owner --no-same-permissions -f ./runner.tar.gz \
+    && tar xzf ./runner.tar.gz \
     && rm runner.tar.gz \
     && ./bin/installdependencies.sh \
     && apt-get autoclean \
@@ -32,17 +48,24 @@ RUN curl -f -L -o runner-container-hooks.zip https://github.com/actions/runner-c
     && unzip -o ./runner-container-hooks.zip -d ./k8s \
     && rm runner-container-hooks.zip
 
+# Install dumb-init, arch command on OS X reports "i386" for Intel CPUs regardless of bitness
+#RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+#  && export ARCH \
+#  && if [ "$ARCH" = "arm" ]; then export ARCH=armv7l; fi \
+#  && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
+#  && if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then export ARCH=x86_64 ; fi \
+#  && curl -f -L -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/dumb-init_${DUMB_INIT_VERSION}_${ARCH} \
+#  && chmod +x /usr/local/bin/dumb-init
+
 # Make the rootless runner directory and externals directory executable
-RUN mkdir -p /run/user/1001 \
-    && chown runner:runner /run/user/1001 \
-    && chmod a+x /run/user/1001 \
+RUN mkdir -p /run/user/1000 \
+    && chown runner:runner /run/user/1000 \
+    && chmod a+x /run/user/1000 \
     && mkdir -p /home/runner/externals \
     && chown runner:runner /home/runner/externals \
     && chmod a+x /home/runner/externals
 
-
 RUN chmod 777 /usr/local/bin
-# No group definition, as that makes it harder to run docker.
 USER runner
 
 ENTRYPOINT ["/usr/local/bin/dumb-init", "--"]

@@ -4,6 +4,12 @@ USER root
 
 ARG TARGETPLATFORM
 
+RUN add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update && \
+    apt-get -y install --no-install-recommends git && \
+    apt-get -y clean && \
+    rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 WORKDIR /home/runner
 
 # GitHub runner arguments
