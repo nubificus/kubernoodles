@@ -36,7 +36,7 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           list-files: 'json'
-          base: 'feat_nbfc'
+          base: 'feat_fix_tf'
           filters: |
             base:
               - 'images/rootless-ubuntu-*-base.Dockerfile'
@@ -180,7 +180,7 @@ jobs:
           echo "Processed filenames: ${{ steps.replace_files_base.outputs.base_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_torch.outputs.torch_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_tf.outputs.tf_files_new}}"
-          echo "Processed filenames: ${{ steps.replace_files_tf.outputs.tvm_files_new}}"
+          echo "Processed filenames: ${{ steps.replace_files_tvm.outputs.tvm_files_new}}"
 
 
   build-dockerfiles-base:
@@ -217,8 +217,8 @@ jobs:
       dockerfiles: ${{ needs.get-changed-files.outputs.files_torch }}
 
   build-dockerfiles-tvm:
-    needs: [get-changed-files,build-dockerfiles-base]
-    name: Torch 
+    needs: [get-changed-files]
+    name: TVM 
     if: ${{ needs.get-changed-files.outputs.tvm }}
     uses: ./.github/workflows/build-latest.yml
     secrets: inherit

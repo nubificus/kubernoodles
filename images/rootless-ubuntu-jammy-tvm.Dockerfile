@@ -10,21 +10,35 @@ RUN add-apt-repository -y ppa:git-core/ppa && \
     apt-get -y clean && \
     rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ARG TVM_VERSION="v0.17.0"
-# Build and install PyTorch
+# Build and install TVM
+ARG TVM_VERSION="v0.19.0"
 #RUN [ -z "${TORCH_VERSION}" ] && \
 #    TVM_TAG=$(git ls-remote --tags --refs --sort='v:refname' \
 #        https://github.com/apache/tvm | \
 #        grep -E "refs/tags/v[0-9]+\.[0-9]+.[0-9]+$" | awk -F/ 'END{print$NF}') && \
 #    TVM_VERSION=${TVM_TAG}; \
+WORKDIR /opt
 RUN git clone https://github.com/apache/tvm --depth 1 --recursive \
         -b "${TVM_VERSION}" && \
     cd tvm && \
     cmake -S . -B build && \
+    cp cmake/config.cmake build/ && \
+    echo >> build/config.cmake && \
+    echo "set(CMAKE_BUILD_TYPE RelWithDebInfo)" >> build/config.cmake && \
+    echo "set(USE_LLVM \"llvm-config --ignore-libllvm --link-static\")" \
+        >> build/config.cmake && \
+    echo "set(HIDE_PRIVATE_SYMBOLS ON)" >> build/config.cmake && \
     cmake --build build --parallel "$(nproc)" && \
-    cmake --install build --prefix=/usr/local && \
-    cd .. 
+    export TVM_LIBRARY_PATH=/opt/tvm/build && \
+    pip install -e /opt/tvm/python && \
+    echo "/opt/tvm/build" >> /etc/ld.so.conf.d/tvm.conf && \
+    ldconfig
+#cmake --install build --prefix=/usr/local && \
+#cd .. && \
 # && rm -rf tvm
+
+# Install deps for TVM model build script
+RUN pip install Pillow onnx xgboost
 
 WORKDIR /home/runner
 
