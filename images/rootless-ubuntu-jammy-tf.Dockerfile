@@ -61,7 +61,7 @@ RUN git clone -b "${TF_VERSION}" --recursive --depth 1 \
 WORKDIR /home/runner
 
 # GitHub runner arguments
-ARG RUNNER_VERSION=2.322.0
+ARG RUNNER_VERSION=2.323.0
 ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Runner download supports amd64 as x64
