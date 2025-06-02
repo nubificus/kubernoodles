@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 
-
 # Docker and Compose arguments
 ARG DOCKER_VERSION=27.2.1
 

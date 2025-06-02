@@ -52,6 +52,7 @@ jobs:
           echo "Files in base: ${{ steps.filter.outputs.base_files }}"
           echo "Files in torch: ${{ steps.filter.outputs.torch_files }}"
           echo "Files in tf: ${{ steps.filter.outputs.tf_files }}"
+          echo "Files in opencv: ${{ steps.filter.outputs.opencv_files }}"
           echo "Files changed: ${{ steps.filter.outputs.changes }}"
 
       - name: Replace file paths in base_files
@@ -179,7 +180,7 @@ jobs:
           echo "Processed filenames: ${{ steps.replace_files_base.outputs.base_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_torch.outputs.torch_files_new}}"
           echo "Processed filenames: ${{ steps.replace_files_tf.outputs.tf_files_new}}"
-          echo "Processed filenames: ${{ steps.replace_files_tf.outputs.opencv_files_new}}"
+          echo "Processed filenames: ${{ steps.replace_files_opencv.outputs.opencv_files_new}}"
 
 
   build-dockerfiles-base:
@@ -189,7 +190,7 @@ jobs:
     uses: ./.github/workflows/build-latest.yml
     secrets: inherit
     with:
-      runner: '["gcc", "dind", "2204"]'
+      runner: '["base", "dind", "2204"]'
       runner-archs: '["amd64", "arm64", "arm"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_base }}
 
@@ -200,7 +201,7 @@ jobs:
     uses: ./.github/workflows/build-latest.yml
     secrets: inherit
     with:
-      runner: '["gcc", "dind", "2204"]'
+      runner: '["base", "dind", "2204"]'
       runner-archs: '["amd64", "arm64"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_tf }}
 
@@ -211,18 +212,18 @@ jobs:
     uses: ./.github/workflows/build-latest.yml
     secrets: inherit
     with:
-      runner: '["gcc", "dind", "2204"]'
+      runner: '["base", "dind", "2204"]'
       runner-archs: '["amd64", "arm64"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_torch }}
 
   build-dockerfiles-opencv:
     needs: [get-changed-files]
-    name: Torch 
+    name: OpenCV
     if: ${{ needs.get-changed-files.outputs.opencv }}
     uses: ./.github/workflows/build-latest.yml
     secrets: inherit
     with:
-      runner: '["gcc", "dind", "2204"]'
+      runner: '["base", "dind", "2204"]'
       runner-archs: '["amd64", "arm64"]'
       dockerfiles: ${{ needs.get-changed-files.outputs.files_opencv }}
 
