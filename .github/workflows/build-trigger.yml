@@ -1,4 +1,4 @@
-name: 🍜 Build/publish base runners
+name: 🍜 Build/publish base runners manual
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           list-files: 'json'
-          base: 'feat_fix_jetson~1'
+          base: 'feat_fix_jetson'
           filters: |
             base:
               - 'images/rootless-ubuntu-*-base.Dockerfile'
@@ -44,9 +44,6 @@ jobs:
   process-dockerfiles:
     needs: get-changed-files
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        category: [base, torch, tf, tvm, opencv]
     outputs:
       processed_files: ${{ steps.process.outputs.processed_files }}
     steps:
@@ -54,38 +51,86 @@ jobs:
         id: process
         env:
           ALL_OUTPUTS: ${{ toJson(needs.get-changed-files.outputs) }}
-          CATEGORY: ${{ matrix.category }}
         run: |
-          FILES=$(echo "$ALL_OUTPUTS" | jq -r ".\"${CATEGORY}_files\"")
+          CATEGORIES=(base torch tf tvm opencv)
+          FINAL_NAMES=()
 
-          if [ "$FILES" = "[]" ]; then
-            echo "processed_files=[]" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          for CATEGORY in "${CATEGORIES[@]}"; do
+            FILES=$(echo "$ALL_OUTPUTS" | jq -r ".\"${CATEGORY}_files\"")
+            if [ "$FILES" = "null" ] || [ "$FILES" = "[]" ]; then
+              continue
+            fi
 
-          # Convert JSON array to Bash array
-          FILES_ARRAY=($(echo "$FILES" | jq -r '.[]'))
-
-          NEW_FILE_NAMES=()
-          for FILE_PATH in "${FILES_ARRAY[@]}"; do
-            NEW_NAME=$(basename "$FILE_PATH" .Dockerfile | sed 's/^images\///')
-            NEW_FILE_NAMES+=("\"$NEW_NAME\"")
+            FILES_ARRAY=($(echo "$FILES" | jq -r '.[]'))
+            for FILE_PATH in "${FILES_ARRAY[@]}"; do
+              NEW_NAME=$(basename "$FILE_PATH" .Dockerfile | sed 's/^images\///')
+              FINAL_NAMES+=("\"$NEW_NAME\"")
+            done
           done
 
-          JSON_OUTPUT=$(printf "[%s]" "$(IFS=,; echo "${NEW_FILE_NAMES[*]}")")
-          echo "processed_files=$JSON_OUTPUT" >> "$GITHUB_OUTPUT"
+          if [ ${#FINAL_NAMES[@]} -eq 0 ]; then
+            echo "processed_files=[]" >> "$GITHUB_OUTPUT"
+          else
+            JSON_OUTPUT=$(printf "[%s]" "$(IFS=,; echo "${FINAL_NAMES[*]}")")
+            echo "processed_files=$JSON_OUTPUT" >> "$GITHUB_OUTPUT"
+          fi
+
+
+  set-matrix:
+    needs: process-dockerfiles
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: Set matrix from processed files
+        id: set
+        run: |
+          FILES='${{ needs.process-dockerfiles.outputs.processed_files }}'
+          
+          if [ "$FILES" = "[]" ]; then
+            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          FILE_ARRAY=$(echo "$FILES" | jq -r '.[]')
+          
+          MATRIX_ENTRIES=()
+          for FILE in $FILE_ARRAY; do
+            if [[ "$FILE" == *"-base" ]]; then
+              ARCHS='["amd64", "arm64", "arm"]'
+            else
+              ARCHS='["amd64", "arm64"]'
+            fi
+          
+            ENTRY=$(jq -n \
+              --arg df "$FILE" \
+              --argjson archs "$ARCHS" \
+              '{dockerfile: $df, runner_archs: $archs}')
+            MATRIX_ENTRIES+=("$ENTRY")
+          done
+          
+          FINAL_MATRIX=$(jq -n --argjson entries "$(printf '%s\n' "${MATRIX_ENTRIES[@]}" | jq -s '.')" \
+            '{include: $entries}')
+          
+          # Compact JSON to single line to satisfy GitHub Actions output format
+          echo "matrix=$(echo "$FINAL_MATRIX" | jq -c '.')" >> $GITHUB_OUTPUT
+      - name: Debug processed_files
+        run: echo "${{ needs.process-dockerfiles.outputs.processed_files }}"
+      - name: Debug matrix
+        run: echo "${{ steps.set.outputs.matrix }}"
+
+        
 
 
   build-dockerfiles:
-    needs: process-dockerfiles
+    needs: set-matrix
+    if: ${{ join(fromJson(needs.set-matrix.outputs.matrix).include, ',') != '' }}
     strategy:
-      matrix:
-        category: [base, torch, tf, tvm, opencv]
-    if: ${{ needs.process-dockerfiles.outputs.processed_files != '[]' }}
+      matrix: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
     uses: ./.github/workflows/build-latest.yml
-    secrets: inherit
     with:
       runner: '["base", "dind", "2204"]'
-      runner-archs: ${{ matrix.category == 'base' && '["amd64", "arm64", "arm"]' || '["amd64", "arm64"]' }}
-      dockerfiles: ${{ needs.process-dockerfiles.outputs.processed_files }}
-
+      dockerfiles: ${{ toJson(matrix.dockerfile) }}
+      #runner-archs: ${{ toJson(matrix.runner_archs) }}
+      runner-archs: '["amd64", "arm64", "arm"]'
+    secrets: inherit
