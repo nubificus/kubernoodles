@@ -75,7 +75,8 @@ RUN apt-get clean && apt-get update \
     build-essential cmake gcc-12 g++-12 ninja-build dh-make \
     git-buildpackage \
     libxml2-dev libxslt1-dev \
-    libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler \
+    libclang-dev cppcheck pkg-config protobuf-c-compiler protobuf-compiler \
+    gdb libbabeltrace1 libboost-regex1.74.0 libc6-dbg libdebuginfod-common libdebuginfod1 libsource-highlight-common libsource-highlight4v5 ucf \
     && apt-get clean \
     && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
     && rm -rf /var/lib/apt/lists/*
@@ -152,6 +153,40 @@ RUN wget --https-only --secure-protocol=TLSv1_2 -O- https://sh.rustup.rs | sh /d
 RUN chmod a+w /opt/cargo
 RUN chmod a+w /opt/rust
 
+ARG VALGRIND_VERSION
+ARG TARGETARCH
+
+RUN if [ -z "${VALGRIND_VERSION}" ]; then \
+        VALGRIND_VERSION=$(git ls-remote --tags --refs --sort='v:refname' \
+            https://sourceware.org/git/valgrind.git | \
+            grep -E "refs/tags/VALGRIND_[0-9]+_[0-9]+_[0-9]+$" | \
+            awk -F/ 'END{print$NF}'); \
+    fi && \
+    git clone https://sourceware.org/git/valgrind.git --depth 1 -b "${VALGRIND_VERSION}" && \
+    cd valgrind && \
+    ./autogen.sh && \
+    if [ "$TARGETARCH" = "arm" ]; then \
+        ./configure --host=armv7-linux-gnueabihf --prefix=/usr/local; \
+    else \
+        ./configure --prefix=/usr/local; \
+    fi && \
+    make -j$(nproc) && \
+    make install
+
+#ARG VALGRIND_VERSION
+#RUN [ -z "${VALGRIND_VERSION}" ] && \
+#    VALGRIND_TAG=$(git ls-remote --tags --refs --sort='v:refname' \
+#        https://sourceware.org/git/valgrind.git | \
+#        grep -E "refs/tags/VALGRIND_[0-9]+_[0-9]+_[0-9]+$" | awk -F/ 'END{print$NF}') && \
+#    VALGRIND_VERSION=${VALGRIND_TAG}; \
+#    git clone https://sourceware.org/git/valgrind.git --depth 1 \
+#        -b "${VALGRIND_VERSION}" && \
+#    cd valgrind && \
+#    ./autogen.sh && \
+#    ./configure --prefix=/usr/local && \
+#    make && \
+#    make install
+#
 WORKDIR /home/runner
 
 # GitHub runner arguments
