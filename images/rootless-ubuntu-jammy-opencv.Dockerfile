@@ -25,7 +25,7 @@ RUN [ -z "${OPENCV_VERSION}" ] && \
 WORKDIR /home/runner
 
 # GitHub runner arguments
-ARG RUNNER_VERSION=2.324.0
+ARG RUNNER_VERSION=2.326.0
 ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Runner download supports amd64 as x64

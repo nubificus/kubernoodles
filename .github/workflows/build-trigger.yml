@@ -28,7 +28,7 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           list-files: 'json'
-          base: 'feat_fix_jetson'
+          base: 'feat_trigger_base'
           filters: |
             base:
               - 'images/rootless-ubuntu-*-base.Dockerfile'
@@ -132,5 +132,5 @@ jobs:
       runner: '["base", "dind", "2204"]'
       dockerfiles: ${{ toJson(matrix.dockerfile) }}
       #runner-archs: ${{ toJson(matrix.runner_archs) }}
-      runner-archs: '["amd64", "arm64", "arm"]'
+      runner-archs: '["amd64", "arm64"]'
     secrets: inherit
