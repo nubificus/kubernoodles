@@ -70,7 +70,7 @@ RUN apt-get update \
     git-buildpackage \
     libxml2-dev libxslt1-dev \
     libclang-dev valgrind cppcheck pkg-config protobuf-c-compiler protobuf-compiler \
-    libcurl4-openssl-dev libstb-dev \
+    libcurl4-openssl-dev libstb-dev libarchive-dev \
     && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -158,7 +158,7 @@ RUN chmod a+w /opt/rust
 WORKDIR /home/runner
 
 # GitHub runner arguments
-ARG RUNNER_VERSION=2.325.0
+ARG RUNNER_VERSION=2.326.0
 ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Runner download supports amd64 as x64
