@@ -2,7 +2,7 @@ FROM harbor.nbfc.io/nubificus/kubernoodles/rootless-ubuntu-jammy-base:generic
 
 USER root
 ARG TARGETPLATFORM
-ARG TORCH_VERSION
+ARG TORCH_VERSION=v2.7.1
 # Build and install PyTorch
 RUN [ -z "${TORCH_VERSION}" ] && \
     TORCH_TAG=$(git ls-remote --tags --refs --sort='v:refname' \
@@ -23,7 +23,7 @@ RUN [ -z "${TORCH_VERSION}" ] && \
 WORKDIR /home/runner
 
 # GitHub runner arguments
-ARG RUNNER_VERSION=2.326.0
+ARG RUNNER_VERSION=2.328.0
 ARG RUNNER_CONTAINER_HOOKS_VERSION=0.6.1
 
 # Runner download supports amd64 as x64
@@ -57,6 +57,7 @@ RUN mkdir -p /run/user/1000 \
     && chmod a+x /run/user/1000 \
     && mkdir -p /home/runner/externals \
     && chown runner:runner /home/runner/externals \
+    && chown -R runner:runner /home/runner/ \
     && chmod a+x /home/runner/externals
 
 RUN chmod 777 /usr/local/bin
