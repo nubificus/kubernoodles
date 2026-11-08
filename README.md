@@ -25,16 +25,16 @@ There are currently 5 images that are "prebuilt" by this project, although you c
 <!-- START_SECTION:table -->
 | image name | base image | CVE count<br>(crit/high/med+below) | archs | virtualization? | sudo? | notes |
 |---|---|---|---|---|---|---|
-| ubi8 | [ubi8-init:8.10](https://catalog.redhat.com/software/containers/ubi8/ubi-init/5c359b97d70cc534b3a378c8) | 4/70/1172 | x86_64<br>arm64 | :x: | :x: | n/a |
-| ubi9 | [ubi9-init:9.4](https://catalog.redhat.com/software/containers/ubi9-init/6183297540a2d8e95c82e8bd) | 4/67/1262 | x86_64<br>arm64 | :x: | :x: | n/a |
-| rootless-ubuntu-jammy | [ubuntu:jammy](https://hub.docker.com/_/ubuntu) | 7/52/704 | x86_64<br>arm64 | rootless Docker-in-Docker | :x: | [common rootless problems](docs/tips-and-tricks.md#rootless-images) |
-| rootless-ubuntu-numbat | [ubuntu:numbat](https://hub.docker.com/_/ubuntu) | 7/53/675 | x86_64<br>arm64 | rootless Docker-in-Docker | :x: | [common rootless problems](docs/tips-and-tricks.md#rootless-images) |
-| wolfi:latest | [wolfi-base:latest](https://images.chainguard.dev/directory/image/wolfi-base/versions) | 2/44/58 | x86_64<br>arm64 | :x: | :x: | n/a |
+| ubi8 | [ubi8-init:8.10](https://catalog.redhat.com/software/containers/ubi8/ubi-init/5c359b97d70cc534b3a378c8) | 4/84/1193 | x86_64<br>arm64 | :x: | :x: | n/a |
+| ubi9 | [ubi9-init:9.4](https://catalog.redhat.com/software/containers/ubi9-init/6183297540a2d8e95c82e8bd) | 4/80/1264 | x86_64<br>arm64 | :x: | :x: | n/a |
+| rootless-ubuntu-jammy | [ubuntu:jammy](https://hub.docker.com/_/ubuntu) | 6/52/812 | x86_64<br>arm64 | rootless Docker-in-Docker | :x: | [common rootless problems](docs/tips-and-tricks.md#rootless-images) |
+| rootless-ubuntu-numbat | [ubuntu:numbat](https://hub.docker.com/_/ubuntu) | 6/53/752 | x86_64<br>arm64 | rootless Docker-in-Docker | :x: | [common rootless problems](docs/tips-and-tricks.md#rootless-images) |
+| wolfi:latest | [wolfi-base:latest](https://images.chainguard.dev/directory/image/wolfi-base/versions) | 2/46/58 | x86_64<br>arm64 | :x: | :x: | n/a |
 <!-- END_SECTION:table -->
 
 <!-- START_SECTION:date -->
 > [!NOTE]
-> CVE count was done on 01 November 2026 with the latest versions of [grype](https://github.com/anchore/grype) and runner image tags.
+> CVE count was done on 08 November 2026 with the latest versions of [grype](https://github.com/anchore/grype) and runner image tags.
 <!-- END_SECTION:date -->
 
 ## Design goals and compromises
